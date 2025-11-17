@@ -1,12 +1,18 @@
 [project]
-name = "SimpleImageSorter"
-version = "0.1.0"
-description = "To easily sort images into new folders"
+name = "SpeciesNetImageSorter"
+version = "0.2.0"
+description = "To easily identify species on wildlife images and sort them into new folders"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = "==3.13.*"
 dependencies = [
+    "setuptools==68",
+    "numpy>=1.24.*",
     "pyinstaller>=6.16.0",
     "pyqt6>=6.9.1",
+    "speciesnet>=5.0.2", 
+    "onnx==1.18.*",
+    "megadetector-utils",
+    
 ]
 
 [dependency-groups]
