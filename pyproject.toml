@@ -9,13 +9,13 @@ dependencies = [
     "numpy>=1.24.*",
     "pyinstaller>=6.16.0",
     "pyqt6>=6.9.1",
-    "speciesnet>=5.0.2", 
+    "speciesnet>=5.0.2",
     "onnx==1.18.*",
     "megadetector-utils",
-    
 ]
 
 [dependency-groups]
 dev = [
     "pytest>=8.4.2",
+    "pyinstaller>=6.16.0",
 ]

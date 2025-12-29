@@ -209,3 +209,7 @@ __marimo__/
 
 # Sample images
 demo_images/
+demo_images copy/*
+
+# Weights directory
+app/weights/models/**
