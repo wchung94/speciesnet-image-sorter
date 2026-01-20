@@ -1,4 +1,3 @@
-# ...existing code...
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QFileDialog, QPushButton, QHBoxLayout, QMessageBox
 import os
 import logging
@@ -30,7 +29,6 @@ class MegaDetectorWidget(QWidget):
         self.setLayout(vlayout)
     
     def on_run_clicked(self):
-        # Get current folder from MainWindow if available
         window = self.window()
         folder = None
         if window and hasattr(window, "current_folder") and window.current_folder:
@@ -85,7 +83,6 @@ class MegaDetectorWidget(QWidget):
     
     def on_output(self, message):
         """Handle output lines from the worker."""
-        # worker already logs, but ensure GUI-level handling if needed
         self.logger.info(message)
     
     def on_error(self, message):
@@ -114,9 +111,7 @@ class MegaDetectorWidget(QWidget):
                 self.logger.debug("No folder available to rename MegaDetector output files.")
         except Exception as e:
             self.logger.error(f"Error renaming MegaDetector output files: {e}")
-# ...existing code...
 
-# ...existing code...
     def rename_output_files(self, folder):
         """Rename files in megadetector_output so only the part after the last '~' remains,
         and add a '_pred' postfix before the extension. If a target name already exists,
