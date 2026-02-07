@@ -1,9 +1,11 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QFileDialog, QTabWidget, QPushButton, QHBoxLayout, QMessageBox
+from PyQt6.QtCore import Qt
 import os
+import sys
 import logging
 from glob import glob
 from .worker import SpeciesnetWorker
-
+import time
 
 class SpeciesnetWidget(QWidget):
     """Widget that places a 'Run SpeciesNet' button at the left-bottom corner.
@@ -47,9 +49,17 @@ class SpeciesnetWidget(QWidget):
 
         image_files = ",".join(glob(os.path.join(folder, "*.JPG")))
 
+        # Stop any existing worker first
+        if self.worker and self.worker.isRunning():
+            self.logger.warning("Stopping previous SpeciesNet worker...")
+            self.worker.terminate_process()
+            self.worker.quit()
+            self.worker.wait(2000)
+            self.worker = None
+
         try:
             cmd = [
-                "python", "-m", "speciesnet.scripts.run_model",
+                sys.executable, "-m", "speciesnet.scripts.run_model",
                 #"--folders", folder,
                 "--filepaths", image_files,
                 "--predictions_json", predictions_json,
@@ -58,11 +68,13 @@ class SpeciesnetWidget(QWidget):
             
             # Create and start worker thread
             self.worker = SpeciesnetWorker(cmd, folder)
-            self.worker.output_signal.connect(self.on_output)
-            self.worker.error_signal.connect(self.on_error)
-            self.worker.finished_signal.connect(self.on_finished)
-            # Properly cleanup the thread when done to prevent segfaults
-            self.worker.finished.connect(self.worker.deleteLater)
+            # Set parent to ensure proper cleanup
+            self.worker.setParent(self)
+            self.worker.output_signal.connect(self.on_output, Qt.ConnectionType.QueuedConnection)
+            self.worker.error_signal.connect(self.on_error, Qt.ConnectionType.QueuedConnection)
+            self.worker.finished_signal.connect(self.on_finished, Qt.ConnectionType.QueuedConnection)
+            # Don't delete the worker - keep it alive to prevent segfaults
+            # Qt will clean it up when the parent widget is destroyed
             self.worker.start()
             
             self.run_button.setEnabled(False)
@@ -83,5 +95,10 @@ class SpeciesnetWidget(QWidget):
     
     def on_finished(self):
         """Handle completion of SpeciesNet process."""
-        self.run_button.setEnabled(True)
-        self.logger.info("SpeciesNet process finished")
+        try:
+            if self.run_button and not self.run_button.isHidden():
+                self.run_button.setEnabled(True)
+            self.logger.info("SpeciesNet process finished")
+        except RuntimeError as e:
+            # Widget was deleted
+            self.logger.debug(f"Widget deleted during on_finished: {e}")

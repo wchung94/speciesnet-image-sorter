@@ -1,4 +1,5 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QFileDialog, QPushButton, QHBoxLayout, QMessageBox
+from PyQt6.QtCore import Qt
 import os
 import logging
 from .worker import SpeciesnetWorker
@@ -66,14 +67,24 @@ class MegaDetectorWidget(QWidget):
             output_dir
         ]
 
+        # Stop any existing worker first
+        if self.worker and self.worker.isRunning():
+            self.logger.warning("Stopping previous MegaDetector worker...")
+            self.worker.terminate_process()
+            self.worker.quit()
+            self.worker.wait(2000)
+            self.worker = None
+
         try:
             # reuse SpeciesnetWorker that captures stdout/stderr and emits signals
             self.worker = SpeciesnetWorker(cmd, folder, task_name="MegaDetector")
-            self.worker.output_signal.connect(self.on_output)
-            self.worker.error_signal.connect(self.on_error)
-            self.worker.finished_signal.connect(self.on_finished)
-            # Properly cleanup the thread when done to prevent segfaults
-            self.worker.finished.connect(self.worker.deleteLater)
+            # Set parent to ensure proper cleanup
+            self.worker.setParent(self)
+            self.worker.output_signal.connect(self.on_output, Qt.ConnectionType.QueuedConnection)
+            self.worker.error_signal.connect(self.on_error, Qt.ConnectionType.QueuedConnection)
+            self.worker.finished_signal.connect(self.on_finished, Qt.ConnectionType.QueuedConnection)
+            # Don't delete the worker - keep it alive to prevent segfaults
+            # Qt will clean it up when the parent widget is destroyed
             self.worker.start()
 
             self.run_button.setEnabled(False)
@@ -93,26 +104,31 @@ class MegaDetectorWidget(QWidget):
     
     def on_finished(self):
         """Re-enable button when finished and rename output files."""
-        self.run_button.setEnabled(True)
-        self.logger.info("MegaDetector process finished")
-
-        # Attempt to rename output files produced by MegaDetector
         try:
-          # prefer the explicit output_dir used when starting MegaDetector
-            output_dir = getattr(self, "output_dir", None)
-            # fallback: if output_dir not set, try worker.folder or widget.folder_path
-            if not output_dir:
-                if self.worker and hasattr(self.worker, "folder"):
-                    output_dir = os.path.join(self.worker.folder, "megadetector_output")
-                elif self.folder_path:
-                    output_dir = os.path.join(self.folder_path, "megadetector_output") 
-            if output_dir:
-                self.rename_output_files(output_dir)
-                self.logger.info("Renamed MegaDetector output files (if any).")
-            else:
-                self.logger.debug("No folder available to rename MegaDetector output files.")
-        except Exception as e:
-            self.logger.error(f"Error renaming MegaDetector output files: {e}")
+            if self.run_button and not self.run_button.isHidden():
+                self.run_button.setEnabled(True)
+            self.logger.info("MegaDetector process finished")
+
+            # Attempt to rename output files produced by MegaDetector
+            try:
+                # prefer the explicit output_dir used when starting MegaDetector
+                output_dir = getattr(self, "output_dir", None)
+                # fallback: if output_dir not set, try worker.folder or widget.folder_path
+                if not output_dir:
+                    if self.worker and hasattr(self.worker, "folder"):
+                        output_dir = os.path.join(self.worker.folder, "megadetector_output")
+                    elif self.folder_path:
+                        output_dir = os.path.join(self.folder_path, "megadetector_output") 
+                if output_dir:
+                    self.rename_output_files(output_dir)
+                    self.logger.info("Renamed MegaDetector output files (if any).")
+                else:
+                    self.logger.debug("No folder available to rename MegaDetector output files.")
+            except Exception as e:
+                self.logger.error(f"Error renaming MegaDetector output files: {e}")
+        except RuntimeError as e:
+            # Widget was deleted
+            self.logger.debug(f"Widget deleted during on_finished: {e}")
 
     def rename_output_files(self, folder):
         """Rename files in megadetector_output so only the part after the last '~' remains,
