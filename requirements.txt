@@ -1,0 +1,41 @@
+# # Core dependencies (shared by desktop and web versions)
+# setuptools>=68
+# numpy>=1.24
+# speciesnet>=5.0.2
+# onnx>=1.18
+# megadetector-utils
+# Pillow>=10.0.0
+
+# # Web app (Streamlit)
+# streamlit>=1.28.0
+
+# # Desktop app (uncomment if using desktop version)
+# # pyqt6>=6.9.1
+# # pyinstaller>=6.16.0
+
+# # opencv 
+# opencv-python-headless==4.9.0.80
+# torch>=2.0.0
+
+# --- Core pins first so pip resolves correctly ---
+# Pin NumPy to 1.x (2.x breaks cv2/yolov5 wheels today)
+numpy==1.26.4
+setuptools>=68
+
+# ONNX works fine with NumPy 1.x; keep <1.19 to avoid accidental NumPy 2 pulls
+onnx>=1.14,<1.19
+
+# Imaging / CV
+Pillow>=10.0.0
+opencv-python-headless==4.9.0.80   # headless avoids libGL/X11 deps
+
+# ML stack
+torch>=2.0.0
+
+# App + SDKs
+streamlit>=1.28.0
+databricks-sdk
+
+# Domain libs
+speciesnet>=5.0.2
+megadetector-utils

@@ -1,21 +1,42 @@
 [project]
 name = "SpeciesNetImageSorter"
-version = "0.2.0"
-description = "To easily identify species on wildlife images and sort them into new folders"
+version = "0.3.0"
+description = "To easily identify species on wildlife images and sort them into new folders - Works as desktop app (PyQt6) or web app (Streamlit on Databricks)"
 readme = "README.md"
-requires-python = "==3.13.*"
+requires-python = ">=3.10"
 dependencies = [
-    "setuptools==68",
+    "setuptools>=68",
     "numpy>=1.24.*",
-    "pyinstaller>=6.16.0",
-    "pyqt6>=6.9.1",
     "speciesnet>=5.0.2",
-    "onnx==1.18.*",
+    "onnx>=1.18.*",
     "megadetector-utils",
+    "Pillow>=10.0.0",
+    # Streamlit dependencies
+    "streamlit>=1.28.0",
+    # Databricks SDK for volume access
+    "databricks-sdk>=0.12.0",
+    # Optional: Desktop app support
+    "pyqt6>=6.9.1;extra=='desktop'",
+    "pyinstaller>=6.16.0;extra=='desktop'",
 ]
 
 [dependency-groups]
 dev = [
     "pytest>=8.4.2",
+]
+desktop = [
+    "pyqt6>=6.9.1",
     "pyinstaller>=6.16.0",
+]
+streamlit = [
+    "streamlit>=1.28.0",
+]
+
+[project.optional-dependencies]
+desktop = [
+    "pyqt6>=6.9.1",
+    "pyinstaller>=6.16.0",
+]
+streamlit = [
+    "streamlit>=1.28.0",
 ]

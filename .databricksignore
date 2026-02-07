@@ -1,0 +1,42 @@
+# Databricks ignore file
+# Files and directories to exclude when deploying to Databricks
+
+# Git
+.git
+.gitignore
+.github
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.pytest_cache
+.venv
+venv
+dist
+build
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Documentation
+readme/
+demo_images*
+
+# Build artifacts
+*.spec
+build/
+dist/
+
+# Test files
+test_*.py
+
+# Cache
+.cache
+.mypy_cache
