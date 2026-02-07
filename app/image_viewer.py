@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import (QLabel, QMainWindow, QFileDialog, QListWidget, 
-                             QListWidgetItem, QWidget, QHBoxLayout, QVBoxLayout, QSplitter, QPushButton, QTabWidget, QTextEdit)
+                             QListWidgetItem, QWidget, QHBoxLayout, QVBoxLayout, QSplitter, QPushButton, QTabWidget, QTextEdit, QApplication)
 from PyQt6.QtGui import QPixmap, QIcon
 from PyQt6.QtCore import Qt, QSize
 import logging
@@ -15,7 +15,14 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Image Viewer")
-        self.setGeometry(100, 100, 1000, 700)
+        
+        # Get primary screen and center window on it
+        screen = QApplication.primaryScreen().geometry()
+        window_width = 1000
+        window_height = 700
+        x = screen.x() + (screen.width() - window_width) // 2
+        y = screen.y() + (screen.height() - window_height) // 2
+        self.setGeometry(x, y, window_width, window_height)
         
         # Initialize variables
         self.current_folder = None
@@ -68,6 +75,12 @@ class MainWindow(QMainWindow):
         
         # Add handler to logger
         self.logger.addHandler(log_handler)
+        
+        # Add console handler for terminal output
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.DEBUG)
+        console_handler.setFormatter(formatter)
+        self.logger.addHandler(console_handler)
         
         # Log startup message
         self.logger.info("=== Application Started ===")

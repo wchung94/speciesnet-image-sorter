@@ -1,65 +1,8 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QFileDialog, QTabWidget, QPushButton, QHBoxLayout, QMessageBox
-from PyQt6.QtCore import QThread, pyqtSignal
 import os
-import subprocess
 import logging
 from glob import glob
-
-class SpeciesnetWorker(QThread):
-    """Worker thread to run SpeciesNet without blocking the UI."""
-    output_signal = pyqtSignal(str)
-    error_signal = pyqtSignal(str)
-    finished_signal = pyqtSignal()
-    
-    def __init__(self, cmd, folder):
-        super().__init__()
-        self.cmd = cmd
-        self.folder = folder
-        self.logger = logging.getLogger("ImageViewer")
-    
-    def run(self):
-        try:
-            self.output_signal.emit(f"Starting SpeciesNet on folder: {self.folder}")
-            self.logger.info(f"Starting SpeciesNet on folder: {self.folder}")
-            
-            # Run subprocess with output capture
-            process = subprocess.Popen(
-                self.cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True
-            )
-            
-            # Read stdout and stderr in real-time
-            while True:
-                output = process.stdout.readline()
-                if output == '' and process.poll() is not None:
-                    break
-                if output:
-                    self.output_signal.emit(output.strip())
-                    self.logger.info(output.strip())
-            
-            # Get any remaining stderr
-            _, stderr = process.communicate()
-            if stderr:
-                self.error_signal.emit(stderr)
-                self.logger.error(stderr)
-            
-            return_code = process.returncode
-            if return_code == 0:
-                self.output_signal.emit("SpeciesNet completed successfully")
-                self.logger.info("SpeciesNet completed successfully")
-            else:
-                self.error_signal.emit(f"SpeciesNet exited with code {return_code}")
-                self.logger.error(f"SpeciesNet exited with code {return_code}")
-            
-            self.finished_signal.emit()
-            
-        except Exception as e:
-            error_msg = f"Failed to run SpeciesNet: {str(e)}"
-            self.error_signal.emit(error_msg)
-            self.logger.error(error_msg)
-            self.finished_signal.emit()
+from .worker import SpeciesnetWorker
 
 
 class SpeciesnetWidget(QWidget):
@@ -118,6 +61,8 @@ class SpeciesnetWidget(QWidget):
             self.worker.output_signal.connect(self.on_output)
             self.worker.error_signal.connect(self.on_error)
             self.worker.finished_signal.connect(self.on_finished)
+            # Properly cleanup the thread when done to prevent segfaults
+            self.worker.finished.connect(self.worker.deleteLater)
             self.worker.start()
             
             self.run_button.setEnabled(False)

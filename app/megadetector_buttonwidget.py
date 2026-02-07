@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QFileDialog, QPushButton, QHBoxLayout, QMessageBox
 import os
 import logging
-from .speciesnet_buttonwidget import SpeciesnetWorker
+from .worker import SpeciesnetWorker
 
 class MegaDetectorWidget(QWidget):
     """Widget that places a 'Run Megadetector' button at the left-bottom corner.
@@ -68,10 +68,12 @@ class MegaDetectorWidget(QWidget):
 
         try:
             # reuse SpeciesnetWorker that captures stdout/stderr and emits signals
-            self.worker = SpeciesnetWorker(cmd, folder)
+            self.worker = SpeciesnetWorker(cmd, folder, task_name="MegaDetector")
             self.worker.output_signal.connect(self.on_output)
             self.worker.error_signal.connect(self.on_error)
             self.worker.finished_signal.connect(self.on_finished)
+            # Properly cleanup the thread when done to prevent segfaults
+            self.worker.finished.connect(self.worker.deleteLater)
             self.worker.start()
 
             self.run_button.setEnabled(False)
