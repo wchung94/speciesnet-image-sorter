@@ -126,6 +126,15 @@ class MegaDetectorWidget(QWidget):
                     self.logger.debug("No folder available to rename MegaDetector output files.")
             except Exception as e:
                 self.logger.error(f"Error renaming MegaDetector output files: {e}")
+            
+            # Load images from the processed folder
+            window = self.window()
+            if window and hasattr(window, 'load_folder_images') and self.worker:
+                folder = self.worker.folder
+                if folder:
+                    window.current_folder = folder
+                    window.load_folder_images()
+                    self.logger.info(f"Loaded images from processed folder: {folder}")
         except RuntimeError as e:
             # Widget was deleted
             self.logger.debug(f"Widget deleted during on_finished: {e}")

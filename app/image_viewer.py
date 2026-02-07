@@ -148,6 +148,10 @@ class MainWindow(QMainWindow):
         # Add Open Folder action
         open_folder_action = file_menu.addAction("Open Folder")
         open_folder_action.triggered.connect(self.open_folder)
+        
+        # Add Reload Folder action
+        reload_folder_action = file_menu.addAction("Reload Folder")
+        reload_folder_action.triggered.connect(self.reload_folder)
 
     def open_image(self):
         file_name, _ = QFileDialog.getOpenFileName(
@@ -186,6 +190,36 @@ class MainWindow(QMainWindow):
             self.current_image_index = 0
             load_image(self.image_files[0], self.image_label)
             self.file_list.setCurrentRow(0)
+        else:
+            self.current_image_index = -1
+            self.image_label.clear()
+            self.image_label.setText("No images found in the selected folder")
+            self.logger.warning("No images found in the selected folder")
+
+    def reload_folder(self):
+        """Reload images from the current folder."""
+        if not self.current_folder:
+            self.logger.warning("No folder is currently open")
+            return
+        
+        # Store the current image filename to try to restore selection after reload
+        current_file = None
+        if 0 <= self.current_image_index < len(self.image_files):
+            current_file = self.image_files[self.current_image_index]
+        
+        self.logger.info(f"Reloading folder: {self.current_folder}")
+        self.image_files = load_folder_images(self.current_folder, self.file_list)
+        self.logger.info(f"Reloaded {len(self.image_files)} images")
+        
+        if self.image_files:
+            # Try to restore the previously selected image
+            if current_file and current_file in self.image_files:
+                self.current_image_index = self.image_files.index(current_file)
+            else:
+                self.current_image_index = 0
+            
+            load_image(self.image_files[self.current_image_index], self.image_label)
+            self.file_list.setCurrentRow(self.current_image_index)
         else:
             self.current_image_index = -1
             self.image_label.clear()
