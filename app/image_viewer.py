@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import (QLabel, QMainWindow, QFileDialog, QListWidget, 
-                             QListWidgetItem, QWidget, QHBoxLayout, QVBoxLayout, QSplitter, QPushButton, QTabWidget, QTextEdit)
+                             QListWidgetItem, QWidget, QHBoxLayout, QVBoxLayout, QSplitter, QPushButton, QTabWidget, QTextEdit, QApplication)
 from PyQt6.QtGui import QPixmap, QIcon
 from PyQt6.QtCore import Qt, QSize
 import logging
@@ -15,7 +15,14 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Image Viewer")
-        self.setGeometry(100, 100, 1000, 700)
+        
+        # Get primary screen and center window on it
+        screen = QApplication.primaryScreen().geometry()
+        window_width = 1000
+        window_height = 700
+        x = screen.x() + (screen.width() - window_width) // 2
+        y = screen.y() + (screen.height() - window_height) // 2
+        self.setGeometry(x, y, window_width, window_height)
         
         # Initialize variables
         self.current_folder = None
@@ -68,6 +75,12 @@ class MainWindow(QMainWindow):
         
         # Add handler to logger
         self.logger.addHandler(log_handler)
+        
+        # Add console handler for terminal output
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.DEBUG)
+        console_handler.setFormatter(formatter)
+        self.logger.addHandler(console_handler)
         
         # Log startup message
         self.logger.info("=== Application Started ===")
@@ -227,8 +240,29 @@ class MainWindow(QMainWindow):
         self.current_image_index = (self.current_image_index + 1) % len(self.image_files)
         self.logger.debug(f"Next image: {self.image_files[self.current_image_index]}")
         load_image(self.image_files[self.current_image_index], self.image_label)
-        self.file_list.setCurrentRow(self.current_image_index)
-
+        self.file_list.setCurrentRow(self.current_image_index)    
+    def closeEvent(self, event):
+        """Handle application close event to ensure worker threads are properly terminated."""
+        # Terminate SpeciesNet worker if running
+        if hasattr(self.speciesnet_widget, 'worker') and self.speciesnet_widget.worker:
+            if self.speciesnet_widget.worker.isRunning():
+                self.logger.info("Terminating SpeciesNet worker...")
+                self.speciesnet_widget.worker.terminate_process()
+                self.speciesnet_widget.worker.quit()
+                if not self.speciesnet_widget.worker.wait(2000):
+                    self.logger.warning("SpeciesNet worker did not terminate in time")
+        
+        # Terminate MegaDetector worker if running
+        if hasattr(self.megadetector_button, 'worker') and self.megadetector_button.worker:
+            if self.megadetector_button.worker.isRunning():
+                self.logger.info("Terminating MegaDetector worker...")
+                self.megadetector_button.worker.terminate_process()
+                self.megadetector_button.worker.quit()
+                if not self.megadetector_button.worker.wait(2000):
+                    self.logger.warning("MegaDetector worker did not terminate in time")
+        
+        self.logger.info("Application closing")
+        event.accept()
     def previous_image(self):
         if not self.image_files or self.current_image_index == -1:
             return
