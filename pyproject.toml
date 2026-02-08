@@ -12,6 +12,8 @@ dependencies = [
     "speciesnet>=5.0.2",
     "onnx==1.18.*",
     "megadetector-utils",
+    "streamlit>=1.31.0",
+    "pillow>=10.0.0",
 ]
 
 [dependency-groups]
