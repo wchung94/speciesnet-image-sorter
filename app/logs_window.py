@@ -1,5 +1,4 @@
 import logging
-from PyQt6.QtWidgets import QTextEdit
 from PyQt6.QtCore import Qt, QObject, pyqtSignal
 
 class LogHandler(logging.Handler, QObject):

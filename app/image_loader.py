@@ -2,7 +2,7 @@ import os
 from PyQt6.QtWidgets import QListWidgetItem
 from PyQt6.QtGui import QIcon, QPixmap
 from .thumbnail_creator import create_thumbnail
-from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtCore import Qt
 
 def load_image(file_path, image_label):
     """Load and display the image in the label."""

@@ -1,6 +1,4 @@
 """Unit tests for thumbnail_creator module."""
-import os
-import tempfile
 import pytest
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtGui import QPixmap

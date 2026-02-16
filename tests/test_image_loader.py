@@ -3,9 +3,8 @@ import os
 import tempfile
 import shutil
 import pytest
-from PyQt6.QtWidgets import QApplication, QLabel, QListWidget
-from PyQt6.QtGui import QPixmap
-from app.image_loader import load_image, load_folder_images
+from PyQt6.QtWidgets import QApplication, QListWidget
+from app.image_loader import load_folder_images
 
 
 @pytest.fixture(scope="module")

@@ -1,11 +1,9 @@
 from PyQt6.QtWidgets import (QLabel, QMainWindow, QFileDialog, QListWidget, 
-                             QListWidgetItem, QWidget, QHBoxLayout, QVBoxLayout, QSplitter, QPushButton, QTabWidget, QTextEdit, QApplication)
-from PyQt6.QtGui import QPixmap, QIcon
+                             QWidget, QHBoxLayout, QSplitter, QTextEdit, QApplication)
 from PyQt6.QtCore import Qt, QSize
 import logging
 from .folder_buttonwidget import FolderTab
 from .image_loader import load_image, load_folder_images
-from .thumbnail_creator import create_thumbnail
 from .file_operations import copy_current_image_to_new_folder
 from .speciesnet_buttonwidget import SpeciesnetWidget
 from .megadetector_buttonwidget import MegaDetectorWidget

@@ -2,7 +2,6 @@
 import os
 import tempfile
 import shutil
-import pytest
 from app.file_operations import copy_current_image_to_new_folder
 
 

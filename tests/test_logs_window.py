@@ -2,7 +2,6 @@
 import logging
 import pytest
 from PyQt6.QtWidgets import QApplication, QTextEdit
-from PyQt6.QtCore import QTimer
 from app.logs_window import LogHandler
 
 

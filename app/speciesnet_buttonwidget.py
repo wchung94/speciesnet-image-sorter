@@ -1,11 +1,10 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QFileDialog, QTabWidget, QPushButton, QHBoxLayout, QMessageBox
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QFileDialog, QPushButton, QHBoxLayout, QMessageBox
 from PyQt6.QtCore import Qt
 import os
 import sys
 import logging
 from glob import glob
 from .worker import SpeciesnetWorker
-import time
 
 class SpeciesnetWidget(QWidget):
     """Widget that places a 'Run SpeciesNet' button at the left-bottom corner.

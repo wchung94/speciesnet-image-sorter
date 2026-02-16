@@ -1,7 +1,6 @@
 from PyQt6.QtCore import QThread, pyqtSignal
 import subprocess
 import logging
-import signal
 
 
 class SpeciesnetWorker(QThread):
