@@ -16,7 +16,7 @@ To run the application in non-compiled form, you can use `uv run main.py`
         ├── thumbnail_creator.py
         └── file_operations.py
 ```
-![Example Gui](./readme/example_app.png)
+![Example Gui](./docs/example_app.png)
 
 
 # How to use Sorting
