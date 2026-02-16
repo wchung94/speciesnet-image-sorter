@@ -6,6 +6,7 @@ This application is used to easily view through all images in a folder and to so
 Application is build in python and compiled to .exe
 
 To run the application in non-compiled form, you can use `uv run main.py`
+To run the application in streamlit, you can use `uv run streamlit run st_app/streamlit_app.py` [WIP]
 
 ```
 ./SimpleImageSorter/
