@@ -58,7 +58,7 @@ class TestFolderTab:
         """Test that tabs are movable."""
         tab_widget = FolderTab()
         
-        assert tab_widget.isMovable() == True
+        assert tab_widget.isMovable()
     
     def test_widget_access(self, qapp):
         """Test accessing widgets in tabs."""

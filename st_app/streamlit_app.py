@@ -281,8 +281,9 @@ if st.session_state.image_files:
             image = Image.open(current_image_path)
             st.write(f"**Size:** {image.size[0]} x {image.size[1]}")
             st.write(f"**Format:** {image.format}")
-        except:
-            pass
+        except Exception as e:
+            log_message(f"Failed {e} to load thumbnail for {current_image_path}", "ERROR")
+            raise
         
         # Display predictions if available
         display_predictions_info()
@@ -318,8 +319,9 @@ if st.session_state.image_files:
                 
                 st.image(img, use_container_width=True)
                 st.caption(f"{idx + 1}")
-            except:
-                pass
+            except Exception as e:
+                log_message(f"Failed {e} to load thumbnail for {img_path}", "ERROR")
+                raise
 
 else:
     # No images loaded
