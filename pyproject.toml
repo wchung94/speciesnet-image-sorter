@@ -12,10 +12,15 @@ dependencies = [
     "speciesnet>=5.0.2",
     "onnx==1.18.*",
     "megadetector-utils",
+    "streamlit>=1.31.0",
+    "pillow>=10.0.0",
 ]
 
 [dependency-groups]
 dev = [
     "pytest>=8.4.2",
     "pyinstaller>=6.16.0",
+    "ruff>=0.8.0",
+    "coverage>=7.0.0",
+    "pre-commit>=4.5.1",
 ]

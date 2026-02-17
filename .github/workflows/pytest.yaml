@@ -1,0 +1,50 @@
+name: Pytest
+
+on:
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+
+jobs:
+  test:
+    name: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # - name: Install system dependencies for PyQt6
+      #   run: |
+      #     sudo apt-get update
+      #     sudo apt-get install -y \
+      #       libglib2.0-0 \
+      #       ffmpeg \
+      #       libsm6 \
+      #       libxext6
+
+
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Test with pytest
+        run: |
+          uv run coverage run -m pytest ./tests/streamlit/ -vs
+
+      - name: Generate Coverage Report
+        run: |
+          uv run coverage report -m
