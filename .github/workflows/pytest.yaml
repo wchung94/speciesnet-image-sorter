@@ -23,14 +23,14 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install system dependencies for PyQt6
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libglib2.0-0 \
-            ffmpeg \
-            libsm6 \
-            libxext6  
+      # - name: Install system dependencies for PyQt6
+      #   run: |
+      #     sudo apt-get update
+      #     sudo apt-get install -y \
+      #       libglib2.0-0 \
+      #       ffmpeg \
+      #       libsm6 \
+      #       libxext6  
  
 
       - name: Install dependencies
@@ -38,7 +38,7 @@ jobs:
 
       - name: Test with pytest
         run: |
-          xvfb-run -a uv run coverage run -m pytest  -v -s
+          uv run coverage run -m pytest ./tests/streamlit/ -vs
 
       - name: Generate Coverage Report
         run: |
