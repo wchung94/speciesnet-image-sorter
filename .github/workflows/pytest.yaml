@@ -6,8 +6,8 @@ on:
       - main
 
 jobs:
-  ruff:
-    name: ruff
+  test:
+    name: test
     runs-on: ubuntu-latest
 
     steps:
