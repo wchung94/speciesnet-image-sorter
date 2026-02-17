@@ -1,4 +1,4 @@
-"""Unit tests for worker module in pyqt6."""
+"""Unit tests for worker module."""
 
 import sys
 import time
