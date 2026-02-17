@@ -66,9 +66,9 @@ class TestSpeciesnetWorker:
 
         # Verify results
         assert len(finished_called) > 0, "Finished signal should have been emitted"
-        assert any(
-            "Hello World" in msg for msg in output_messages
-        ), f"Expected 'Hello World' in output messages: {output_messages}"
+        assert any("Hello World" in msg for msg in output_messages), (
+            f"Expected 'Hello World' in output messages: {output_messages}"
+        )
 
     def test_command_with_error(self, qapp):
         """Test running a command that fails."""
