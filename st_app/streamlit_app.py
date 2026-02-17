@@ -340,25 +340,25 @@ else:
 
     st.markdown("""
     ## How to Use:
-    
+
     ### 1. Image Sorting
     1. Enter the path to your image folder in the sidebar
     2. Click "Load Folder" to load all images
     3. Define up to 3 destination folders
     4. Navigate through images using Previous/Next buttons
     5. Click the folder buttons to copy the current image
-    
+
     ### 2. SpeciesNet Detection
     1. Load a folder containing wildlife images
     2. Click "Run SpeciesNet" to detect species
     3. A `predictions.json` file will be generated with species probabilities
     4. View detection results in the image info panel
-    
+
     ### 3. MegaDetector Visualization
     1. After running SpeciesNet, click "Run MegaDetector"
     2. New images with bounding boxes will be generated
     3. Click "Reload Folder" to see the new visualizations
-    
+
     ### 4. Navigation Tips
     - Use the thumbnail gallery at the bottom to quickly jump to images
     - Use the "Jump to" field to go to a specific image number

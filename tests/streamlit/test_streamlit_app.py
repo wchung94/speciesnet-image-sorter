@@ -183,9 +183,7 @@ def test_initial_state_shows_no_images_message(monkeypatch):
 
     assert fake_st.session_state.current_folder is None
     assert fake_st.session_state.image_files == []
-    assert _has_call_with_text(
-        fake_st._calls, "info", "Please load a folder"
-    )
+    assert _has_call_with_text(fake_st._calls, "info", "Please load a folder")
 
 
 def test_load_folder_with_no_images_warns(monkeypatch, tmp_path):
@@ -252,9 +250,7 @@ def test_load_folder_reads_predictions(monkeypatch, tmp_path):
 
     assert fake_st.session_state.predictions_data is not None
     assert fake_st.session_state.show_predictions is True
-    assert _has_call_with_text(
-        fake_st._calls, "subheader", "Detection Results"
-    )
+    assert _has_call_with_text(fake_st._calls, "subheader", "Detection Results")
 
 
 def test_copy_button_invokes_copy(monkeypatch, tmp_path):

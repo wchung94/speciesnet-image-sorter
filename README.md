@@ -41,7 +41,7 @@ To run the application in streamlit, you can use `uv run streamlit run st_app/st
 
 
 # Local run
-If you do not always have access to internet and/or worry about needing a network to access the AI models. 
+If you do not always have access to internet and/or worry about needing a network to access the AI models.
 You can download the models to your local directory running the script in `./weights/download_weights.py`
 The downloaded models can then be used for the detection and interference tasks.
 
@@ -50,5 +50,3 @@ The downloaded models can then be used for the detection and interference tasks.
 - >8 GB RAM (Depends on number of images and if you are going to run it locally)
 - CPU that can handle AI inference workloads
   if you have a NVIDIA GPU you can benefit from CUDA
-
-
