@@ -1,4 +1,5 @@
 """Pytest configuration and fixtures."""
+
 import pytest
 from PyQt6.QtWidgets import QApplication
 

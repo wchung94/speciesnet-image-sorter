@@ -1,21 +1,30 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QFileDialog, QPushButton, QHBoxLayout, QMessageBox
+from PyQt6.QtWidgets import (
+    QWidget,
+    QVBoxLayout,
+    QFileDialog,
+    QPushButton,
+    QHBoxLayout,
+    QMessageBox,
+)
 from PyQt6.QtCore import Qt
 import os
 import logging
 from .worker import SpeciesnetWorker
+
 
 class MegaDetectorWidget(QWidget):
     """Widget that places a 'Run Megadetector' button at the left-bottom corner.
     When clicked it checks for predictions.json in the current folder and runs
     megadetector's visualization command in a worker thread.
     """
+
     def __init__(self, name):
         super().__init__()
         self.folder_path = ""
         self.folder_name = name
         self.worker = None
         self.logger = logging.getLogger("ImageViewer")
-        
+
         vlayout = QVBoxLayout()
         vlayout.addStretch()  # push buttons to the bottom row
 
@@ -28,7 +37,7 @@ class MegaDetectorWidget(QWidget):
 
         vlayout.addLayout(hbox)
         self.setLayout(vlayout)
-    
+
     def on_run_clicked(self):
         window = self.window()
         folder = None
@@ -36,7 +45,9 @@ class MegaDetectorWidget(QWidget):
             folder = window.current_folder
 
         if not folder:
-            folder = QFileDialog.getExistingDirectory(self, "Select folder to run MegaDetector on")
+            folder = QFileDialog.getExistingDirectory(
+                self, "Select folder to run MegaDetector on"
+            )
             if not folder:
                 return
 
@@ -55,16 +66,19 @@ class MegaDetectorWidget(QWidget):
         try:
             os.makedirs(output_dir, exist_ok=True)
         except Exception as e:
-            QMessageBox.critical(self, "MegaDetector", f"Failed to create output directory:\n{e}")
+            QMessageBox.critical(
+                self, "MegaDetector", f"Failed to create output directory:\n{e}"
+            )
             self.logger.error(f"Failed to create output directory {output_dir}: {e}")
             return
 
         # command to run megadetector visualization
         cmd = [
-            "python", "-m",
+            "python",
+            "-m",
             "megadetector.visualization.visualize_detector_output",
             predictions_json,
-            output_dir
+            output_dir,
         ]
 
         # Stop any existing worker first
@@ -80,9 +94,15 @@ class MegaDetectorWidget(QWidget):
             self.worker = SpeciesnetWorker(cmd, folder, task_name="MegaDetector")
             # Set parent to ensure proper cleanup
             self.worker.setParent(self)
-            self.worker.output_signal.connect(self.on_output, Qt.ConnectionType.QueuedConnection)
-            self.worker.error_signal.connect(self.on_error, Qt.ConnectionType.QueuedConnection)
-            self.worker.finished_signal.connect(self.on_finished, Qt.ConnectionType.QueuedConnection)
+            self.worker.output_signal.connect(
+                self.on_output, Qt.ConnectionType.QueuedConnection
+            )
+            self.worker.error_signal.connect(
+                self.on_error, Qt.ConnectionType.QueuedConnection
+            )
+            self.worker.finished_signal.connect(
+                self.on_finished, Qt.ConnectionType.QueuedConnection
+            )
             # Don't delete the worker - keep it alive to prevent segfaults
             # Qt will clean it up when the parent widget is destroyed
             self.worker.start()
@@ -93,15 +113,15 @@ class MegaDetectorWidget(QWidget):
             error_msg = f"Failed to start MegaDetector: {str(e)}"
             QMessageBox.critical(self, "MegaDetector Error", error_msg)
             self.logger.error(error_msg)
-    
+
     def on_output(self, message):
         """Handle output lines from the worker."""
         self.logger.info(message)
-    
+
     def on_error(self, message):
         """Handle error output from the worker."""
         self.logger.error(message)
-    
+
     def on_finished(self):
         """Re-enable button when finished and rename output files."""
         try:
@@ -116,20 +136,26 @@ class MegaDetectorWidget(QWidget):
                 # fallback: if output_dir not set, try worker.folder or widget.folder_path
                 if not output_dir:
                     if self.worker and hasattr(self.worker, "folder"):
-                        output_dir = os.path.join(self.worker.folder, "megadetector_output")
+                        output_dir = os.path.join(
+                            self.worker.folder, "megadetector_output"
+                        )
                     elif self.folder_path:
-                        output_dir = os.path.join(self.folder_path, "megadetector_output") 
+                        output_dir = os.path.join(
+                            self.folder_path, "megadetector_output"
+                        )
                 if output_dir:
                     self.rename_output_files(output_dir)
                     self.logger.info("Renamed MegaDetector output files (if any).")
                 else:
-                    self.logger.debug("No folder available to rename MegaDetector output files.")
+                    self.logger.debug(
+                        "No folder available to rename MegaDetector output files."
+                    )
             except Exception as e:
                 self.logger.error(f"Error renaming MegaDetector output files: {e}")
-            
+
             # Load images from the processed folder
             window = self.window()
-            if window and hasattr(window, 'load_folder_images') and self.worker:
+            if window and hasattr(window, "load_folder_images") and self.worker:
                 folder = self.worker.folder
                 if folder:
                     window.current_folder = folder
@@ -146,9 +172,11 @@ class MegaDetectorWidget(QWidget):
         """
         output_dir = folder
         if not os.path.isdir(output_dir):
-            self.logger.warning(f"rename_output_files: output directory not found: {output_dir}")
+            self.logger.warning(
+                f"rename_output_files: output directory not found: {output_dir}"
+            )
             return
-        
+
         for fname in os.listdir(output_dir):
             src_path = os.path.join(output_dir, fname)
             if not os.path.isfile(src_path):
@@ -159,7 +187,9 @@ class MegaDetectorWidget(QWidget):
 
             raw_name = fname.split("~")[-1].strip()
             if not raw_name:
-                self.logger.debug(f"Skipping rename for {fname}: empty target name after '~'")
+                self.logger.debug(
+                    f"Skipping rename for {fname}: empty target name after '~'"
+                )
                 continue
 
             base, ext = os.path.splitext(raw_name)
