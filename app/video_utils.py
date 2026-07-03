@@ -78,16 +78,20 @@ def extract_frames(video_path, output_folder=None, frame_interval=30, max_frames
 
         # --- RESUME LOGIC ---
         # Look at the folder and find the last successfully saved frame number
-        existing_files = [f for f in os.listdir(output_folder) if f.lower().endswith(".jpg")]
-        
+        existing_files = [
+            f for f in os.listdir(output_folder) if f.lower().endswith(".jpg")
+        ]
+
         # Calculate how many frames were already extracted
         extracted_count = len(existing_files)
-        
+
         # Reconstruct frame paths for existing files
         frame_paths = [os.path.join(output_folder, f) for f in sorted(existing_files)]
-        
+
         if extracted_count > 0:
-            logger.info(f"Resuming {Path(video_path).name}: Found {extracted_count} existing frames.")
+            logger.info(
+                f"Resuming {Path(video_path).name}: Found {extracted_count} existing frames."
+            )
             # We skip the frames we already processed
             frame_count = extracted_count * frame_interval
             # Fast-forward the video reader to the correct frame
@@ -111,13 +115,13 @@ def extract_frames(video_path, output_folder=None, frame_interval=30, max_frames
                     f"{Path(video_path).stem}_frame_{extracted_count:06d}.jpg"
                 )
                 frame_path = os.path.join(output_folder, frame_filename)
-                
+
                 # Double-check safety before overwriting
                 if not os.path.exists(frame_path):
                     cv2.imwrite(frame_path, frame)
                     if frame_path not in frame_paths:
                         frame_paths.append(frame_path)
-                
+
                 extracted_count += 1
 
             frame_count += 1
@@ -151,7 +155,7 @@ def _process_video_wrapper(args):
     video_file, frame_interval, max_frames_per_video = args
     return extract_frames(
         video_file,
-        output_folder=None,  
+        output_folder=None,
         frame_interval=frame_interval,
         max_frames=max_frames_per_video,
     )
@@ -178,20 +182,24 @@ def extract_frames_batch(
 
     # Dynamically determine the optimal number of workers
     available_cores = os.cpu_count() or 1
-    
+
     # Windows OS hard limitation: ProcessPoolExecutor cannot exceed 61 workers
-    if sys.platform == 'win32':
+    if sys.platform == "win32":
         available_cores = min(available_cores, 61)
-        
+
     optimal_workers = min(len(video_files), available_cores)
-    
-    logger.info(f"Starting parallel extraction using {optimal_workers} worker processes...")
+
+    logger.info(
+        f"Starting parallel extraction using {optimal_workers} worker processes..."
+    )
 
     # Package the arguments into tuples so they can be pickled and sent to other cores
     task_args = [(vf, frame_interval, max_frames_per_video) for vf in video_files]
 
     # Use ProcessPoolExecutor to run extractions in parallel
-    with concurrent.futures.ProcessPoolExecutor(max_workers=optimal_workers) as executor:
+    with concurrent.futures.ProcessPoolExecutor(
+        max_workers=optimal_workers
+    ) as executor:
         # map() submits the tasks to the wrapper function and guarantees results are returned in original order
         for result in executor.map(_process_video_wrapper, task_args):
             results.append(result)
