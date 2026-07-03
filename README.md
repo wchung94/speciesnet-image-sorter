@@ -1,5 +1,7 @@
 # SpeciesNetImageSorter (Streamlit)
 
+[For using the old unsupported PYQT app, see the README in the folder ./pyqt_app]
+
 Web app for browsing wildlife images/videos, sorting files into destination folders, and running SpeciesNet + MegaDetector from a Streamlit interface.
 
 ![Example Gui](./docs/example_app.png)
