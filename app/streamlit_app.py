@@ -15,6 +15,7 @@ from streamlit_utils import (
     run_speciesnet,
     run_megadetector,
     display_predictions_info,
+    is_video_file,
 )
 
 # Configure page
@@ -251,11 +252,14 @@ if st.session_state.image_files:
     img_col, info_col = st.columns([3, 1])
 
     with img_col:
-        try:
-            image = Image.open(current_image_path)
-            st.image(image, use_container_width=True)
-        except Exception as e:
-            st.error(f"Error loading image: {str(e)}")
+        if is_video_file(current_image_path):
+            st.video(current_image_path)
+        else:
+            try:
+                image = Image.open(current_image_path)
+                st.image(image, use_container_width=True)
+            except Exception as e:
+                st.error(f"Error loading image: {str(e)}")
 
         # Copy buttons below image
         st.markdown("### 📤 Copy Image To:")
@@ -286,15 +290,18 @@ if st.session_state.image_files:
         st.subheader("📊 Image Info")
         st.write(f"**Filename:** {os.path.basename(current_image_path)}")
 
-        try:
-            image = Image.open(current_image_path)
-            st.write(f"**Size:** {image.size[0]} x {image.size[1]}")
-            st.write(f"**Format:** {image.format}")
-        except Exception as e:
-            log_message(
-                f"Failed {e} to load thumbnail for {current_image_path}", "ERROR"
-            )
-            raise
+        if is_video_file(current_image_path):
+            st.write("**Type:** Video")
+        else:
+            try:
+                image = Image.open(current_image_path)
+                st.write(f"**Size:** {image.size[0]} x {image.size[1]}")
+                st.write(f"**Format:** {image.format}")
+            except Exception as e:
+                log_message(
+                    f"Failed {e} to load thumbnail for {current_image_path}", "ERROR"
+                )
+                raise
 
         # Display predictions if available
         display_predictions_info()
@@ -317,8 +324,6 @@ if st.session_state.image_files:
         with cols[col_idx]:
             try:
                 img_path = st.session_state.image_files[idx]
-                img = Image.open(img_path)
-                img.thumbnail((150, 150))
 
                 # Highlight current image
                 if idx == st.session_state.current_image_index:
@@ -328,8 +333,14 @@ if st.session_state.image_files:
                     st.session_state.current_image_index = idx
                     st.rerun()
 
-                st.image(img, use_container_width=True)
-                st.caption(f"{idx + 1}")
+                if is_video_file(img_path):
+                    st.markdown("🎬 Video")
+                    st.caption(f"{idx + 1}: {os.path.basename(img_path)}")
+                else:
+                    img = Image.open(img_path)
+                    img.thumbnail((150, 150))
+                    st.image(img, use_container_width=True)
+                    st.caption(f"{idx + 1}")
             except Exception as e:
                 log_message(f"Failed {e} to load thumbnail for {img_path}", "ERROR")
                 raise

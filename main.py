@@ -1,9 +1,11 @@
+"""Entry point for the Streamlit web app (referenced by run.sh)."""
+
+import subprocess
 import sys
-from PyQt6.QtWidgets import QApplication
-from app.image_viewer import MainWindow
+import os
 
 if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    window = MainWindow()
-    window.show()
-    sys.exit(app.exec())
+    app_path = os.path.join(os.path.dirname(__file__), "app", "streamlit_app.py")
+    sys.exit(
+        subprocess.run([sys.executable, "-m", "streamlit", "run", app_path]).returncode
+    )

@@ -137,14 +137,14 @@ class FakeStreamlit(types.ModuleType):
 def _load_app(monkeypatch, fake_st, overrides=None):
     monkeypatch.setitem(sys.modules, "streamlit", fake_st)
 
-    import st_app.streamlit_utils as streamlit_utils
+    import app.streamlit_utils as streamlit_utils
 
     streamlit_utils = importlib.reload(streamlit_utils)
     for name, value in (overrides or {}).items():
         setattr(streamlit_utils, name, value)
     monkeypatch.setitem(sys.modules, "streamlit_utils", streamlit_utils)
 
-    import st_app.streamlit_app as streamlit_app
+    import app.streamlit_app as streamlit_app
 
     streamlit_app = importlib.reload(streamlit_app)
     return streamlit_app, streamlit_utils

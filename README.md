@@ -1,64 +1,107 @@
-# SpeciesNetImageSorter
-SpeciesNet and Megadetector application to easily identify species on wildlife photos and videos (See section Video Support) and sort them in folders using key presses.
+# SpeciesNetImageSorter (Streamlit)
 
-This application is used to easily view through all images in a folder and to sort them one by one using key presses to new folders.
+Web app for browsing wildlife images/videos, sorting files into destination folders, and running SpeciesNet + MegaDetector from a Streamlit interface.
 
-Application is build in python and compiled to .exe
-
-To run the application in non-compiled form, you can use `uv run main.py`
-To run the application in streamlit, you can use `uv run streamlit run st_app/streamlit_app.py` [WIP]
-
-```
-./SimpleImageSorter/
-    ├── main.py
-    app/
-        ├── image_viewer.py
-        ├── image_loader.py
-        ├── thumbnail_creator.py
-        └── file_operations.py
-```
 ![Example Gui](./docs/example_app.png)
 
-
-# How to use Sorting
-1. Open the compiled application.
-2. Select the main image folder containing all the images from the `menu bar` on top
-3. Define up to 3 new folders linked to numerical key presses `1`, `2`, `3`.
-4. Use arrow keys to go through images. `Down` and `Right` to go to next image. `Up` and `Left` to go back to previous image
-5. Press the designated numerical key to copy image to the respective folder.
-
-# How to use SpeciesNet Detection
-1. Open the compiled application.
-2. Select the main image folder containing all the images from the `menu bar` on top
-   Alternatively, you can also directly press on "Run SpeciesNet" to run it on a chosen directory containing the images.
-3. After running SpeciesNet, a new `prediction.json` file will be generated containing the species probabilities and bounding boxes
-
-# How to use MegaDetector Bounding boxes
-1. After running SpeciesNet, a new `prediction.json` file is generated in the folder.
-2. The folder containing the `prediction.json` file should be the current opened folder with the wildlife images. If not, open the correct folder with the wildlife images with the generated `predictions.json`
-3. Press 'Run Megadetector' and new images will be generated with the bounding boxes
-4. You can now reopen the folder to also load in the new generated bounding box images.
-
-
-# Local run
-If you do not always have access to internet and/or worry about needing a network to access the AI models.
-You can download the models to your local directory running the script in `./weights/download_weights.py`
-The downloaded models can then be used for the detection and interference tasks.
-
 ## Requirements
-- Windows Computer that can run .exe
-- >8 GB RAM (Depends on number of images and if you are going to run it locally)
-- CPU that can handle AI inference workloads
-  if you have a NVIDIA GPU you can benefit from CUDA
 
+- Python 3.13.x (project is pinned to `==3.13.*`)
+- Linux/macOS/Windows
+- Enough RAM/CPU for model inference (GPU can help but is optional)
 
-## Video support
-Video support is still in test phase. Videos are chopped into individual frames as PNG files, which are subsequently treated with speciesnet. To apply the detection on videos, use the folder containing video files as input instead folder containing images. 
-The output of the videos are the individual frame images with a bounding box.
-For videos, it is recommended to not use large/long video files, since this will otherwise create too many images since each frame equals 1 image. A maximum number of frames is still WIP. 
-The model has not been elaborately tested for images and videos in combination together. 
+## Install
 
+Using `uv` (recommended):
 
-## Errors and Issues
-For errors and issues, please create an issue on the issue page. 
-I will look at it and address it when i have time. 
+```bash
+uv sync
+```
+
+Using `pip`:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .
+```
+
+## Run (Streamlit only)
+
+From the repository root:
+
+```bash
+uv run streamlit run app/streamlit_app.py
+```
+
+Or with an active virtual environment:
+
+```bash
+streamlit run app/streamlit_app.py
+```
+
+Streamlit will print a local URL (typically `http://localhost:8501`).
+
+## Usage
+
+### 1. Load media
+
+1. Click **Load Folder** in the sidebar.
+2. Select a folder containing images and/or videos.
+3. The app loads supported files and shows them in the main viewer and thumbnail gallery.
+
+Supported image formats:
+
+- `.png`, `.jpg`, `.jpeg`, `.bmp`, `.gif`
+
+Supported video formats:
+
+- `.mp4`, `.avi`, `.mov`, `.mkv`, `.flv`, `.wmv`, `.webm`
+
+### 2. Sort media into folders
+
+1. Configure up to 3 destination folders in the sidebar.
+2. Use **Prev/Next**, **Jump to**, or thumbnails to navigate.
+3. Click **Folder 1 / Folder 2 / Folder 3** under the current image to copy it.
+
+### 3. Run SpeciesNet
+
+1. Load a folder with wildlife media.
+2. Click **Run SpeciesNet**.
+3. The app writes `predictions.json` in the selected folder.
+4. Detection details appear in the right info panel.
+
+### 4. Run MegaDetector visualization
+
+1. Ensure `predictions.json` exists (run SpeciesNet first).
+2. Click **Run MegaDetector**.
+3. Visualization outputs are generated in the same folder.
+4. Click **Reload Folder** to refresh the gallery if needed.
+
+## Video notes
+
+- Video support is experimental.
+- The app extracts frames from videos and runs inference on those frames.
+- Large/long videos can create many frames and slow down processing.
+
+## Optional offline model setup
+
+If you want to pre-download model weights for local/offline use:
+
+```bash
+python pyqt_app/weights/download_weights.py
+```
+
+## Troubleshooting
+
+- **No folder dialog opens on Linux:** install Tk support for your Python distribution (`tkinter` is required for the folder picker).
+- **No files loaded:** verify media extensions are supported and files are inside the selected folder.
+- **MegaDetector fails:** check that `predictions.json` exists in the loaded folder.
+
+## Issues
+
+If you hit a bug, open an issue with:
+
+- OS and Python version
+- Exact command used
+- Relevant log/error output

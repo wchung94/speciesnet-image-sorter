@@ -2,7 +2,7 @@
 
 import pytest
 from PyQt6.QtWidgets import QApplication
-from app.folder_buttonwidget import FolderTab, FolderWidget
+from pyqt_app.folder_buttonwidget import FolderTab, FolderWidget
 
 
 @pytest.fixture(scope="module")

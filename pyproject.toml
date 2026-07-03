@@ -7,14 +7,18 @@ requires-python = "==3.13.*"
 dependencies = [
     "setuptools==68",
     "numpy>=1.24.*",
-    "pyinstaller>=6.16.0",
-    "pyqt6>=6.9.1",
     "speciesnet>=5.0.2",
     "onnx==1.18.*",
     "megadetector-utils",
     "streamlit>=1.31.0",
     "pillow>=10.0.0",
     "opencv-python>=4.8.0",
+]
+
+[project.optional-dependencies]
+desktop = [
+    "pyqt6>=6.9.1",
+    "pyinstaller>=6.16.0",
 ]
 
 [dependency-groups]

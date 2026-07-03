@@ -7,7 +7,6 @@ import os
 import json
 import subprocess
 import sys
-from glob import glob
 import shutil
 from datetime import datetime
 
@@ -18,6 +17,31 @@ try:
     TKINTER_AVAILABLE = True
 except ImportError:
     TKINTER_AVAILABLE = False
+
+IMAGE_EXTENSIONS = (
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".bmp",
+    ".gif",
+)
+
+VIDEO_EXTENSIONS = (
+    ".mp4",
+    ".avi",
+    ".mov",
+    ".mkv",
+    ".flv",
+    ".wmv",
+    ".webm",
+)
+
+ALL_MEDIA_EXTENSIONS = IMAGE_EXTENSIONS + VIDEO_EXTENSIONS
+
+
+def is_video_file(path):
+    """Return True if path is a supported video file."""
+    return os.path.splitext(path)[1].lower() in VIDEO_EXTENSIONS
 
 
 def log_message(message, level="INFO"):
@@ -54,37 +78,25 @@ def browse_folder():
 
 
 def load_folder_images(folder_path):
-    """Load all image files from the specified folder."""
+    """Load all image and video files from the specified folder."""
     if not folder_path or not os.path.exists(folder_path):
         return []
 
-    image_extensions = (
-        ".png",
-        ".jpg",
-        ".jpeg",
-        ".bmp",
-        ".gif",
-        ".JPG",
-        ".JPEG",
-        ".PNG",
-        ".BMP",
-        ".GIF",
-    )
-    image_files = []
+    media_files = []
 
     try:
         for f in os.listdir(folder_path):
-            if os.path.splitext(f)[1] in image_extensions:
+            if os.path.splitext(f)[1].lower() in ALL_MEDIA_EXTENSIONS:
                 full_path = os.path.join(folder_path, f)
-                if os.path.isfile(full_path):  # Make sure it's a file
-                    image_files.append(full_path)
+                if os.path.isfile(full_path):
+                    media_files.append(full_path)
 
-        image_files.sort()
-        log_message(f"Loaded {len(image_files)} images from {folder_path}")
+        media_files.sort()
+        log_message(f"Loaded {len(media_files)} files from {folder_path}")
     except Exception as e:
-        log_message(f"Error loading images: {str(e)}", "ERROR")
+        log_message(f"Error loading files: {str(e)}", "ERROR")
 
-    return image_files
+    return media_files
 
 
 def copy_image_to_folder(image_path, destination_folder):
@@ -162,6 +174,39 @@ def rename_megadetector_output(folder_path):
         log_message(f"Error renaming MegaDetector output: {str(e)}", "ERROR")
 
 
+def _extract_video_frames(folder_path):
+    """Extract frames from all videos in the folder. Returns list of frame folders."""
+    try:
+        # Import lazily to avoid hard dependency when not needed
+        import sys as _sys
+
+        _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if _root not in _sys.path:
+            _sys.path.insert(0, _root)
+
+        from pyqt_app.video_utils import get_video_files, extract_frames
+    except ImportError:
+        log_message(
+            "video_utils not available; skipping video frame extraction", "WARNING"
+        )
+        return []
+
+    video_files = get_video_files(folder_path)
+    if not video_files:
+        return []
+
+    log_message(f"Found {len(video_files)} video file(s); extracting frames...")
+    extracted_folders = []
+    for video_file in video_files:
+        result = extract_frames(video_file, frame_interval=30)
+        if result["success"]:
+            log_message(f"✓ {result['message']}")
+            extracted_folders.append(result["output_folder"])
+        else:
+            log_message(f"✗ {result['message']}", "WARNING")
+    return extracted_folders
+
+
 def run_speciesnet(folder_path):
     """Run SpeciesNet on the selected folder."""
     if not folder_path or not os.path.exists(folder_path):
@@ -170,11 +215,31 @@ def run_speciesnet(folder_path):
         return False
 
     predictions_json = os.path.join(folder_path, "predictions.json")
-    image_files = ",".join(glob(os.path.join(folder_path, "*.JPG")))
+    filepaths_txt = os.path.join(folder_path, "speciesnet_filepaths.txt")
+
+    # Extract video frames first
+    extracted_frame_folders = _extract_video_frames(folder_path)
+
+    # Collect image files from main folder and extracted frame folders
+    image_files = [
+        os.path.join(folder_path, f)
+        for f in os.listdir(folder_path)
+        if os.path.splitext(f)[1].lower() in IMAGE_EXTENSIONS
+        and os.path.isfile(os.path.join(folder_path, f))
+    ]
+    for frame_folder in extracted_frame_folders:
+        image_files.extend(
+            os.path.join(frame_folder, f)
+            for f in os.listdir(frame_folder)
+            if os.path.splitext(f)[1].lower() in IMAGE_EXTENSIONS
+            and os.path.isfile(os.path.join(frame_folder, f))
+        )
+    # Deduplicate while preserving order
+    image_files = list(dict.fromkeys(image_files))
 
     if not image_files:
-        log_message("No JPG images found in folder", "WARNING")
-        st.warning("No JPG images found in folder")
+        log_message("No image files found in folder", "WARNING")
+        st.warning("No image files found in folder")
         return False
 
     try:
@@ -182,16 +247,20 @@ def run_speciesnet(folder_path):
         with st.spinner(
             "Running SpeciesNet inference... This may take several minutes."
         ):
+            # Write filepaths to a text file to avoid command-line length limits
+            with open(filepaths_txt, "w", encoding="utf-8") as fh:
+                fh.write("\n".join(image_files))
+
             cmd = [
                 sys.executable,
                 "-m",
                 "speciesnet.scripts.run_model",
-                "--filepaths",
-                image_files,
+                "--filepaths_txt",
+                filepaths_txt,
                 "--predictions_json",
                 predictions_json,
-                "country",
-                "NL",
+                "--country",
+                "NLD",
             ]
 
             result = subprocess.run(
