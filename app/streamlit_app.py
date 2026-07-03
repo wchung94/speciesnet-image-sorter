@@ -45,6 +45,13 @@ if "show_predictions" not in st.session_state:
     st.session_state.show_predictions = False
 if "predictions_data" not in st.session_state:
     st.session_state.predictions_data = None
+if "use_cuda_for_speciesnet" not in st.session_state:
+    st.session_state.use_cuda_for_speciesnet = False
+
+
+def _refresh_image_files(folder_path):
+    """Reload media files from the current folder."""
+    return load_folder_images(folder_path)
 
 
 # Main UI
@@ -68,7 +75,18 @@ with st.sidebar:
         # If user selected a folder from the dialog, use it
         if selected_folder:
             st.session_state.current_folder = selected_folder
-            st.session_state.image_files = load_folder_images(selected_folder)
+
+            # Check for predictions.json
+            predictions_json = os.path.join(selected_folder, "predictions.json")
+            if os.path.exists(predictions_json):
+                with open(predictions_json, "r") as f:
+                    st.session_state.predictions_data = json.load(f)
+                    st.session_state.show_predictions = True
+            else:
+                st.session_state.predictions_data = None
+                st.session_state.show_predictions = False
+
+            st.session_state.image_files = _refresh_image_files(selected_folder)
             st.session_state.current_image_index = 0
 
             # Show feedback about loaded images
@@ -81,25 +99,12 @@ with st.sidebar:
                     f"Loaded {len(st.session_state.image_files)} images from: {selected_folder}"
                 )
 
-            # Check for predictions.json
-            predictions_json = os.path.join(selected_folder, "predictions.json")
-            if os.path.exists(predictions_json):
-                with open(predictions_json, "r") as f:
-                    st.session_state.predictions_data = json.load(f)
-                    st.session_state.show_predictions = True
-            else:
-                st.session_state.predictions_data = None
-                st.session_state.show_predictions = False
-
             st.rerun()
         else:
             st.warning("No folder selected")
 
     if st.button("Reload Folder"):
         if st.session_state.current_folder:
-            st.session_state.image_files = load_folder_images(
-                st.session_state.current_folder
-            )
             # Reload predictions if available
             predictions_json = os.path.join(
                 st.session_state.current_folder, "predictions.json"
@@ -107,6 +112,13 @@ with st.sidebar:
             if os.path.exists(predictions_json):
                 with open(predictions_json, "r") as f:
                     st.session_state.predictions_data = json.load(f)
+            else:
+                st.session_state.predictions_data = None
+
+            st.session_state.image_files = _refresh_image_files(
+                st.session_state.current_folder
+            )
+            st.session_state.current_image_index = 0
             st.rerun()
 
     st.markdown("---")
@@ -167,11 +179,26 @@ with st.sidebar:
     # AI Tools
     st.header("🤖 AI Tools")
 
+    use_cuda_for_speciesnet = st.checkbox(
+        "Use CUDA for SpeciesNet (if available)",
+        value=st.session_state.use_cuda_for_speciesnet,
+        help="When enabled, SpeciesNet can use GPU acceleration if CUDA is available.",
+    )
+    st.session_state.use_cuda_for_speciesnet = use_cuda_for_speciesnet
+
     col1, col2 = st.columns(2)
     with col1:
         if st.button("Run SpeciesNet", use_container_width=True):
             if st.session_state.current_folder:
-                run_speciesnet(st.session_state.current_folder)
+                succeeded = run_speciesnet(
+                    st.session_state.current_folder,
+                    use_cuda=st.session_state.use_cuda_for_speciesnet,
+                )
+                if succeeded:
+                    st.session_state.image_files = _refresh_image_files(
+                        st.session_state.current_folder
+                    )
+                    st.session_state.current_image_index = 0
                 st.rerun()
             else:
                 st.error("Please load a folder first")

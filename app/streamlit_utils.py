@@ -8,6 +8,7 @@ import json
 import subprocess
 import sys
 import shutil
+import re
 from datetime import datetime
 
 try:
@@ -77,22 +78,125 @@ def browse_folder():
         return None
 
 
-def load_folder_images(folder_path):
-    """Load all image and video files from the specified folder."""
+def get_predicted_filenames(predictions_data):
+    """Return a set of basenames that already exist in predictions data."""
+    predicted_filenames = set()
+
+    if not isinstance(predictions_data, dict):
+        return predicted_filenames
+
+    for image_entry in predictions_data.get("images", []):
+        file_value = image_entry.get("file")
+        if isinstance(file_value, str) and file_value:
+            predicted_filenames.add(os.path.basename(file_value))
+
+    return predicted_filenames
+
+
+def _extract_detected_animals(image_prediction):
+    """Extract detected animal labels for a single prediction entry."""
+    animals = set()
+
+    if not isinstance(image_prediction, dict):
+        return animals
+
+    prediction_label = image_prediction.get("prediction")
+    if isinstance(prediction_label, str) and prediction_label:
+        animals.add(prediction_label)
+
+    classifications = image_prediction.get("classifications")
+    if isinstance(classifications, dict):
+        classes = classifications.get("classes")
+        if isinstance(classes, list) and classes:
+            top_class = classes[0]
+            if isinstance(top_class, str) and top_class:
+                animals.add(top_class)
+
+    for detection in image_prediction.get("detections", []):
+        if not isinstance(detection, dict):
+            continue
+
+        class_probs = detection.get("class_probs")
+        if isinstance(class_probs, dict) and class_probs:
+            top_species = max(class_probs.items(), key=lambda item: item[1])[0]
+            if isinstance(top_species, str) and top_species:
+                animals.add(top_species)
+            continue
+
+        category = detection.get("category")
+        if isinstance(category, str) and category:
+            animals.add(category)
+
+    return animals
+
+
+def build_animal_filter_options(predictions_data):
+    """Build dropdown options for animal filter from predictions data."""
+    all_animals = set()
+
+    if not isinstance(predictions_data, dict):
+        return []
+
+    for image_prediction in predictions_data.get("images", []):
+        all_animals.update(_extract_detected_animals(image_prediction))
+
+    return sorted(all_animals)
+
+
+def filter_files_by_detected_animal(image_files, predictions_data, animal_filter):
+    """Filter file list to those matching the selected detected animal."""
+    if (
+        not animal_filter
+        or animal_filter == "All detected animals"
+        or not isinstance(predictions_data, dict)
+    ):
+        return image_files
+
+    matching_filenames = set()
+    for image_prediction in predictions_data.get("images", []):
+        detected_animals = _extract_detected_animals(image_prediction)
+        if animal_filter in detected_animals:
+            file_value = image_prediction.get("file")
+            if isinstance(file_value, str) and file_value:
+                matching_filenames.add(os.path.basename(file_value))
+
+    return [
+        path for path in image_files if os.path.basename(path) in matching_filenames
+    ]
+
+
+def load_folder_images(folder_path, skip_predicted=False, predictions_data=None):
+    """Load media files from the specified folder.
+
+    If skip_predicted is True, files that already have entries in predictions_data
+    are excluded based on filename.
+    """
     if not folder_path or not os.path.exists(folder_path):
         return []
 
     media_files = []
+    skipped_predicted_count = 0
+    predicted_filenames = (
+        get_predicted_filenames(predictions_data) if skip_predicted else set()
+    )
 
     try:
         for f in os.listdir(folder_path):
             if os.path.splitext(f)[1].lower() in ALL_MEDIA_EXTENSIONS:
+                if skip_predicted and f in predicted_filenames:
+                    skipped_predicted_count += 1
+                    continue
+
                 full_path = os.path.join(folder_path, f)
                 if os.path.isfile(full_path):
                     media_files.append(full_path)
 
         media_files.sort()
         log_message(f"Loaded {len(media_files)} files from {folder_path}")
+        if skip_predicted and skipped_predicted_count > 0:
+            log_message(
+                f"Skipped {skipped_predicted_count} file(s) already present in predictions"
+            )
     except Exception as e:
         log_message(f"Error loading files: {str(e)}", "ERROR")
 
@@ -207,7 +311,61 @@ def _extract_video_frames(folder_path):
     return extracted_folders
 
 
-def run_speciesnet(folder_path):
+def _log_torch_runtime_device_info():
+    """Log available ML runtime devices before running SpeciesNet."""
+    try:
+        import torch
+
+        cuda_available = torch.cuda.is_available()
+        mps_available = bool(
+            hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
+        )
+
+        runtime_message = (
+            f"Runtime device check: cuda_available={cuda_available}, "
+            f"mps_available={mps_available}"
+        )
+
+        if cuda_available:
+            device_count = torch.cuda.device_count()
+            active_idx = torch.cuda.current_device()
+            device_name = torch.cuda.get_device_name(active_idx)
+            runtime_message += (
+                f", cuda_device_count={device_count}, active_cuda_device={active_idx}, "
+                f"active_cuda_name={device_name}"
+            )
+
+        log_message(runtime_message)
+    except Exception as e:
+        log_message(f"Runtime device check unavailable: {str(e)}", "WARNING")
+
+
+def _log_speciesnet_selected_devices(output_text):
+    """Parse and log the actual devices reported by SpeciesNet components."""
+    if not output_text:
+        log_message(
+            "SpeciesNet device summary unavailable (no process output captured)",
+            "WARNING",
+        )
+        return
+
+    device_matches = re.findall(
+        r"Loaded SpeciesNet(Detector|Classifier) in .* on ([A-Z0-9_]+)\\.",
+        output_text,
+    )
+
+    if not device_matches:
+        log_message(
+            "SpeciesNet device summary not found in output; check full SpeciesNet logs",
+            "WARNING",
+        )
+        return
+
+    for component, device in device_matches:
+        log_message(f"SpeciesNet {component} is using device: {device}")
+
+
+def run_speciesnet(folder_path, use_cuda=False):
     """Run SpeciesNet on the selected folder."""
     if not folder_path or not os.path.exists(folder_path):
         log_message("Invalid folder path for SpeciesNet", "ERROR")
@@ -244,6 +402,7 @@ def run_speciesnet(folder_path):
 
     try:
         log_message(f"Running SpeciesNet on {folder_path}...")
+        _log_torch_runtime_device_info()
         with st.spinner(
             "Running SpeciesNet inference... This may take several minutes."
         ):
@@ -263,9 +422,48 @@ def run_speciesnet(folder_path):
                 "NLD",
             ]
 
+            # Control whether SpeciesNet can see CUDA devices.
+            env = os.environ.copy()
+            cuda_available = False
+            try:
+                import torch
+
+                cuda_available = torch.cuda.is_available()
+            except Exception as e:
+                log_message(
+                    f"Could not evaluate CUDA availability: {str(e)}", "WARNING"
+                )
+
+            if use_cuda:
+                if cuda_available:
+                    # Ensure default device visibility for CUDA execution.
+                    env.pop("CUDA_VISIBLE_DEVICES", None)
+                    log_message(
+                        "CUDA requested by user and available; allowing GPU usage"
+                    )
+                else:
+                    log_message(
+                        "CUDA requested by user but not available; SpeciesNet will run on CPU",
+                        "WARNING",
+                    )
+                    env["CUDA_VISIBLE_DEVICES"] = ""
+            else:
+                # Hide CUDA devices to force CPU execution.
+                env["CUDA_VISIBLE_DEVICES"] = ""
+                log_message("CUDA usage disabled by user; forcing CPU execution")
+
             result = subprocess.run(
-                cmd, capture_output=True, text=True, cwd=folder_path
+                cmd,
+                capture_output=True,
+                text=True,
+                cwd=folder_path,
+                env=env,
             )
+
+            speciesnet_output = "\n".join(
+                [chunk for chunk in [result.stdout, result.stderr] if chunk]
+            )
+            _log_speciesnet_selected_devices(speciesnet_output)
 
             if result.returncode == 0:
                 log_message("SpeciesNet completed successfully")

@@ -116,6 +116,13 @@ class FakeStreamlit(types.ModuleType):
         self._record("text_input", label, value, key, kwargs)
         return value
 
+    def selectbox(self, label, options, index=0, key=None, **kwargs):
+        self._record("selectbox", label, options, index, key, kwargs)
+        selected = options[index]
+        if key:
+            self.session_state[key] = selected
+        return selected
+
     def columns(self, spec):
         count = len(spec) if isinstance(spec, (list, tuple)) else spec
         self._record("columns", spec)
