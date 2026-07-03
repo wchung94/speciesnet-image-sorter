@@ -66,14 +66,34 @@ Supported video formats:
 2. Use **Prev/Next**, **Jump to**, or thumbnails to navigate.
 3. Click **Folder 1 / Folder 2 / Folder 3** under the current image to copy it.
 
-### 3. Run SpeciesNet
+### 3. Filter to predicted images (checkbox)
+
+Use the sidebar checkbox **Show only images with predictions (conf > 0.1)** to focus on model-positive results.
+
+- The filter keeps only files that have at least one detection with confidence `> 0.1` in `predictions.json`.
+- Files with low-confidence-only detections are hidden by this filter.
+- MegaDetector visualization files (for example `*_pred.jpg` and `*_pred_1.jpg`) are also shown when their source image matches a prediction above the threshold.
+- The app supports both prediction JSON layouts:
+	- `images[].file`
+	- `predictions[].filepath`
+
+### 4. Run SpeciesNet
 
 1. Load a folder with wildlife media.
 2. Click **Run SpeciesNet**.
 3. The app writes `predictions.json` in the selected folder.
 4. Detection details appear in the right info panel.
 
-### 4. Run MegaDetector visualization
+### 5. CUDA checkbox (NVIDIA GPU)
+
+Use the sidebar checkbox **Use CUDA for SpeciesNet (if available)** to control GPU usage for SpeciesNet.
+
+- This checkbox is intended for NVIDIA GPUs with CUDA support.
+- When enabled and CUDA is available, SpeciesNet is allowed to run on GPU.
+- When enabled but CUDA is not available, the app falls back to CPU and logs a warning.
+- When disabled, the app forces CPU execution.
+
+### 6. Run MegaDetector visualization
 
 1. Ensure `predictions.json` exists (run SpeciesNet first).
 2. Click **Run MegaDetector**.
