@@ -6,6 +6,7 @@ A web-based version of the SpeciesNetImageSorter PyQt application.
 import streamlit as st
 import os
 import json
+import re
 from PIL import Image
 from streamlit_utils import (
     log_message,
@@ -47,11 +48,80 @@ if "predictions_data" not in st.session_state:
     st.session_state.predictions_data = None
 if "use_cuda_for_speciesnet" not in st.session_state:
     st.session_state.use_cuda_for_speciesnet = False
+if "show_predicted_only" not in st.session_state:
+    st.session_state.show_predicted_only = False
+
+PREDICTION_CONFIDENCE_THRESHOLD = 0.1
 
 
 def _refresh_image_files(folder_path):
     """Reload media files from the current folder."""
-    return load_folder_images(folder_path)
+    image_files = load_folder_images(folder_path)
+
+    if st.session_state.show_predicted_only and st.session_state.predictions_data:
+        predicted_filenames = set()
+        predicted_stems = set()
+        prediction_entries = st.session_state.predictions_data.get("images")
+        if not isinstance(prediction_entries, list):
+            prediction_entries = st.session_state.predictions_data.get(
+                "predictions", []
+            )
+
+        for image_entry in prediction_entries:
+            if not isinstance(image_entry, dict):
+                continue
+
+            detections = image_entry.get("detections") or []
+            if not any(
+                isinstance(det, dict)
+                and isinstance(det.get("conf"), (int, float))
+                and det.get("conf") > PREDICTION_CONFIDENCE_THRESHOLD
+                for det in detections
+            ):
+                # Only keep media that has at least one detection above threshold.
+                continue
+
+            file_value = image_entry.get("file") or image_entry.get("filepath")
+            if isinstance(file_value, str) and file_value:
+                predicted_name = os.path.basename(file_value).lower()
+                predicted_filenames.add(predicted_name)
+                predicted_stems.add(os.path.splitext(predicted_name)[0])
+
+        def _is_predicted_media(path):
+            basename = os.path.basename(path)
+            basename_lower = basename.lower()
+            if basename_lower in predicted_filenames:
+                return True
+
+            candidates = []
+
+            # MegaDetector visualization outputs are often renamed to *_pred.ext
+            # or *_pred_<n>.ext when collisions happen.
+            name_no_ext, ext = os.path.splitext(basename_lower)
+            if name_no_ext.endswith("_pred"):
+                candidates.append(f"{name_no_ext[:-5]}{ext}")
+
+            match = re.match(r"^(.*)_pred_\d+$", name_no_ext)
+            if match:
+                candidates.append(f"{match.group(1)}{ext}")
+
+            # Handle MegaDetector default naming that prefixes with '~' metadata.
+            if "~" in basename_lower:
+                candidates.append(basename_lower.split("~")[-1])
+
+            for candidate in candidates:
+                candidate_stem = os.path.splitext(candidate)[0]
+                if (
+                    candidate in predicted_filenames
+                    or candidate_stem in predicted_stems
+                ):
+                    return True
+
+            return False
+
+        image_files = [path for path in image_files if _is_predicted_media(path)]
+
+    return image_files
 
 
 # Main UI
@@ -67,6 +137,19 @@ with st.sidebar:
         st.info(f"📂 Current folder: {st.session_state.current_folder}")
     else:
         st.info("📂 No folder loaded yet")
+
+    show_predicted_only = st.checkbox(
+        "Show only images with predictions (conf > 0.1)",
+        value=st.session_state.show_predicted_only,
+        help="Only display files whose predictions include at least one detection with confidence > 0.1",
+    )
+    if show_predicted_only != st.session_state.show_predicted_only:
+        st.session_state.show_predicted_only = show_predicted_only
+        if st.session_state.current_folder:
+            st.session_state.image_files = _refresh_image_files(
+                st.session_state.current_folder
+            )
+            st.session_state.current_image_index = 0
 
     if st.button("📂 Load Folder", use_container_width=True):
         # Open file explorer to select folder
@@ -91,8 +174,20 @@ with st.sidebar:
 
             # Show feedback about loaded images
             if len(st.session_state.image_files) == 0:
-                st.warning(f"No images found in {selected_folder}")
-                log_message(f"No images found in folder: {selected_folder}", "WARNING")
+                if st.session_state.show_predicted_only:
+                    st.warning(
+                        f"No predicted images above confidence 0.1 found in {selected_folder}"
+                    )
+                    log_message(
+                        "No predicted images above confidence 0.1 found in folder: "
+                        f"{selected_folder}",
+                        "WARNING",
+                    )
+                else:
+                    st.warning(f"No images found in {selected_folder}")
+                    log_message(
+                        f"No images found in folder: {selected_folder}", "WARNING"
+                    )
             else:
                 st.success(f"✓ Loaded {len(st.session_state.image_files)} images")
                 log_message(
@@ -210,12 +305,6 @@ with st.sidebar:
                 st.rerun()
             else:
                 st.error("Please load a folder first")
-
-    # Show predictions toggle
-    if st.session_state.predictions_data:
-        st.session_state.show_predictions = st.checkbox(
-            "Show Predictions", value=st.session_state.show_predictions
-        )
 
     st.markdown("---")
 

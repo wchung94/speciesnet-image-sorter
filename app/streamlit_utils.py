@@ -85,8 +85,15 @@ def get_predicted_filenames(predictions_data):
     if not isinstance(predictions_data, dict):
         return predicted_filenames
 
-    for image_entry in predictions_data.get("images", []):
-        file_value = image_entry.get("file")
+    prediction_entries = predictions_data.get("images")
+    if not isinstance(prediction_entries, list):
+        prediction_entries = predictions_data.get("predictions", [])
+
+    for image_entry in prediction_entries:
+        if not isinstance(image_entry, dict):
+            continue
+
+        file_value = image_entry.get("file") or image_entry.get("filepath")
         if isinstance(file_value, str) and file_value:
             predicted_filenames.add(os.path.basename(file_value))
 
@@ -548,9 +555,19 @@ def display_predictions_info():
         ]
         filename = os.path.basename(current_file)
 
+        prediction_entries = st.session_state.predictions_data.get("images")
+        if not isinstance(prediction_entries, list):
+            prediction_entries = st.session_state.predictions_data.get(
+                "predictions", []
+            )
+
         # Find prediction for current image
-        for pred in st.session_state.predictions_data.get("images", []):
-            if pred.get("file", "").endswith(filename):
+        for pred in prediction_entries:
+            if not isinstance(pred, dict):
+                continue
+
+            file_value = pred.get("file") or pred.get("filepath") or ""
+            if os.path.basename(file_value) == filename:
                 st.subheader("🔍 Detection Results")
 
                 detections = pred.get("detections", [])
