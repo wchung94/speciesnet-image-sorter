@@ -16,6 +16,7 @@ from glob import glob
 from .worker import SpeciesnetWorker
 from .video_utils import get_video_files, extract_frames_batch
 
+
 class SpeciesnetWidget(QWidget):
     """Widget that places a 'Run SpeciesNet' button at the left-bottom corner.
     When clicked it runs SpeciesNet on the currently opened folder (from MainWindow.current_folder)
@@ -53,7 +54,9 @@ class SpeciesnetWidget(QWidget):
             self.logger.info("No video files found in folder")
             return []
 
-        self.logger.info(f"Found {len(video_files)} video file(s) to process in parallel")
+        self.logger.info(
+            f"Found {len(video_files)} video file(s) to process in parallel"
+        )
         extracted_frame_folders = []
 
         # Send all videos to our multi-core batch function!
@@ -95,8 +98,8 @@ class SpeciesnetWidget(QWidget):
             image_files.extend(glob(os.path.join(frame_folder, "*.jpg")))
 
         # Remove duplicates while preserving order and force forward-slashes under Linux
-        if sys.platform != 'win32':
-            image_files = [img.replace('\\', '/') for img in image_files]
+        if sys.platform != "win32":
+            image_files = [img.replace("\\", "/") for img in image_files]
         image_files = list(dict.fromkeys(image_files))
 
         if not image_files:
@@ -110,7 +113,7 @@ class SpeciesnetWidget(QWidget):
 
         predictions_json = os.path.join(folder, "predictions.json")
         filepaths_txt = os.path.join(folder, "speciesnet_filepaths.txt")
-        
+
         # Default run parameters
         target_image_files = image_files
         output_json = predictions_json
@@ -125,10 +128,10 @@ class SpeciesnetWidget(QWidget):
                     raw_content = f.read()
 
                 # Clean up all mixed slash mutations to uniform forward-slashes
-                raw_content = raw_content.replace('\\\\', '/').replace('\\', '/')
+                raw_content = raw_content.replace("\\\\", "/").replace("\\", "/")
 
                 # If running inside Linux/WSL, aggressively target and map all Windows-style references
-                if sys.platform != 'win32':
+                if sys.platform != "win32":
                     # Replace things like "C:/Users" with "/mnt/c/Users" case-insensitively
                     raw_content = re.sub(r'(?i)"C:/', '"/mnt/c/', raw_content)
                 else:
@@ -141,28 +144,34 @@ class SpeciesnetWidget(QWidget):
 
                 # Now securely parse it back to a clean python dictionary object
                 self.existing_data = json.loads(raw_content)
-                    
+
                 processed_images = set()
-                if isinstance(self.existing_data, dict) and "images" in self.existing_data:
+                if (
+                    isinstance(self.existing_data, dict)
+                    and "images" in self.existing_data
+                ):
                     for img in self.existing_data["images"]:
                         if "file" in img:
                             processed_images.add(os.path.normpath(img["file"]))
-                            
+
                 normalized_target = [os.path.normpath(img) for img in image_files]
-                
+
                 # Extract only the items that haven't been accounted for yet
                 unprocessed = [
-                    img for img, norm in zip(image_files, normalized_target) 
+                    img
+                    for img, norm in zip(image_files, normalized_target)
                     if norm not in processed_images
                 ]
-                
+
                 if len(unprocessed) == 0:
                     QMessageBox.information(
-                        self, 
-                        "SpeciesNet", 
-                        f"All {len(image_files)} images are already processed in predictions.json.\n\nSkipping AI inference."
+                        self,
+                        "SpeciesNet",
+                        f"All {len(image_files)} images are already processed in predictions.json.\n\nSkipping AI inference.",
                     )
-                    self.logger.info("All images already present in predictions.json. Skipping.")
+                    self.logger.info(
+                        "All images already present in predictions.json. Skipping."
+                    )
                     return
                 elif len(unprocessed) < len(image_files):
                     reply = QMessageBox.question(
@@ -171,17 +180,23 @@ class SpeciesnetWidget(QWidget):
                         f"Found {len(processed_images)} processed images and {len(unprocessed)} unprocessed images.\n\n"
                         "Do you want to RESUME and only process the remaining images?\n"
                         "(Choosing 'Yes' will safely merge the new results into your existing file without overwriting.)",
-                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                     )
                     if reply == QMessageBox.StandardButton.Yes:
                         self.is_resuming = True
                         target_image_files = unprocessed
                         output_json = os.path.join(folder, "predictions_temp.json")
-                        self.logger.info(f"Resuming: skipping {len(processed_images)} files, processing {len(unprocessed)} files.")
+                        self.logger.info(
+                            f"Resuming: skipping {len(processed_images)} files, processing {len(unprocessed)} files."
+                        )
                     else:
-                        self.logger.info("User chose to overwrite existing predictions.json")
+                        self.logger.info(
+                            "User chose to overwrite existing predictions.json"
+                        )
             except Exception as e:
-                self.logger.warning(f"Could not parse existing predictions.json for resuming: {e}")
+                self.logger.warning(
+                    f"Could not parse existing predictions.json for resuming: {e}"
+                )
         # --------------------
 
         # Stop any existing worker first
@@ -204,7 +219,7 @@ class SpeciesnetWidget(QWidget):
                 "--filepaths_txt",
                 filepaths_txt,
                 "--predictions_json",
-                output_json,  
+                output_json,
                 "--country",
                 "NLD",
             ]
@@ -235,42 +250,52 @@ class SpeciesnetWidget(QWidget):
 
     def on_output(self, message):
         """Handle output from SpeciesNet process."""
-        pass  
+        pass
 
     def on_error(self, message):
         """Handle errors from SpeciesNet process."""
-        pass  
+        pass
 
     def on_finished(self):
         """Handle completion of SpeciesNet process."""
         try:
             folder = self.worker.folder if self.worker else None
-            
+
             # --- MERGE LOGIC ---
             if getattr(self, "is_resuming", False) and folder:
                 temp_json = os.path.join(folder, "predictions_temp.json")
                 main_json = os.path.join(folder, "predictions.json")
-                
+
                 if os.path.exists(temp_json):
                     try:
                         with open(temp_json, "r", encoding="utf-8") as f:
                             temp_data = json.load(f)
-                            
-                        if "images" in temp_data and isinstance(self.existing_data, dict):
+
+                        if "images" in temp_data and isinstance(
+                            self.existing_data, dict
+                        ):
                             if "images" not in self.existing_data:
                                 self.existing_data["images"] = []
                             self.existing_data["images"].extend(temp_data["images"])
-                            
+
                             with open(main_json, "w", encoding="utf-8") as f:
                                 json.dump(self.existing_data, f, indent=1)
-                                
+
                             os.remove(temp_json)
-                            self.logger.info(f"Successfully merged {len(temp_data['images'])} resumed images into predictions.json")
+                            self.logger.info(
+                                f"Successfully merged {len(temp_data['images'])} resumed images into predictions.json"
+                            )
                     except Exception as e:
                         self.logger.error(f"Error merging JSON files: {e}")
-                        QMessageBox.warning(self, "Merge Error", f"Failed to merge temporary JSON into main JSON: {e}")
+                        QMessageBox.warning(
+                            self,
+                            "Merge Error",
+                            f"Failed to merge temporary JSON into main JSON: {e}",
+                        )
                 else:
-                    self.logger.warning("Temporary JSON not found. SpeciesNet may have crashed or found no images to process.")
+                    self.logger.warning(
+                        "Temporary JSON not found. SpeciesNet may have crashed or found no images to process."
+                    )
             # --------------------
 
             if self.run_button and not self.run_button.isHidden():
