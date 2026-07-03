@@ -124,6 +124,53 @@ def _refresh_image_files(folder_path):
     return image_files
 
 
+def _enable_arrow_key_navigation():
+    """Enable left/right arrow key navigation for Prev/Next image buttons."""
+    try:
+        from streamlit.components.v1 import html as components_html
+    except Exception:
+        return
+
+    components_html(
+        """
+                <script>
+                (function () {
+                    try {
+                        const parentWindow = window.parent;
+                        if (!parentWindow || parentWindow.__speciesnetArrowNavInstalled) {
+                            return;
+                        }
+                        parentWindow.__speciesnetArrowNavInstalled = true;
+
+                        parentWindow.addEventListener("keydown", function (event) {
+                            const active = parentWindow.document.activeElement;
+                            const tag = active && active.tagName ? active.tagName.toLowerCase() : "";
+                            if (tag === "input" || tag === "textarea") {
+                                return;
+                            }
+
+                            let targetText = null;
+                            if (event.key === "ArrowLeft") targetText = "Prev";
+                            if (event.key === "ArrowRight") targetText = "Next";
+                            if (!targetText) return;
+
+                            const buttons = Array.from(parentWindow.document.querySelectorAll("button"));
+                            const button = buttons.find((b) => (b.innerText || "").includes(targetText));
+                            if (!button) return;
+
+                            event.preventDefault();
+                            button.click();
+                        }, true);
+                    } catch (e) {
+                        // Ignore browser integration errors.
+                    }
+                })();
+                </script>
+                """,
+        height=0,
+    )
+
+
 # Main UI
 st.title("SpeciesNet Image Sorter")
 st.markdown("---")
@@ -318,6 +365,8 @@ with st.sidebar:
 
 # Main content area
 if st.session_state.image_files:
+    _enable_arrow_key_navigation()
+
     # Image counter and navigation
     col1, col2, col3, col4, col5 = st.columns([1, 1, 2, 1, 1])
 
