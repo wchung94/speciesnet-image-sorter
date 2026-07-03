@@ -1,0 +1,12 @@
+@echo off
+:: Change the terminal directory to the folder where this batch file lives
+cd /d "%~dp0"
+
+:: Set up the PYTHONPATH dynamically for your background sub-processes
+set PYTHONPATH=%CD%\.venv\Lib\site-packages;%PYTHONPATH%
+
+:: Run your application using uv
+python -m uv run main.py
+
+:: Keep the terminal window open if the application crashes or exits
+pause

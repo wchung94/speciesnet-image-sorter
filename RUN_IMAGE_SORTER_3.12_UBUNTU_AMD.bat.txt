@@ -1,0 +1,66 @@
+@echo off
+TITLE SpeciesNet Universal Smart Launcher
+COLOR 0A
+
+echo ==========================================================
+echo           AI HARDWARE AUTO-DETECTION SCAN
+echo ==========================================================
+echo.
+
+:: Defaults
+set GPU_TYPE=CPU
+set INDEX_URL=
+set ARCH_OVERRIDE=
+
+:: 1. Scan for AMD (Specific to 7900 series/RDNA3)
+powershell -NoProfile -Command "Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name" | findstr /I "7900" >nul
+if %ERRORLEVEL% equ 0 (
+    set GPU_TYPE=AMD
+    set ARCH_OVERRIDE=gfx1100
+)
+
+:: 2. Scan for NVIDIA
+powershell -NoProfile -Command "Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name" | findstr /I "NVIDIA" >nul
+if %ERRORLEVEL% equ 0 (
+    set GPU_TYPE=NVIDIA
+    set INDEX_URL=https://download.pytorch.org/whl/cu124
+)
+
+echo Hardware Detected: [%GPU_TYPE%]
+if "%ARCH_OVERRIDE%" NEQ "" echo Architecture Override: [%ARCH_OVERRIDE%]
+echo.
+
+:: Bind machine to distinct virtual environment
+set VENV_NAME=.venv_%GPU_TYPE%
+
+IF NOT EXIST "%VENV_NAME%\Scripts\activate.bat" (
+    echo [Setup] Building Dedicated %GPU_TYPE% Environment...
+    py -3.12 -m venv %VENV_NAME%
+    call %VENV_NAME%\Scripts\activate.bat
+    python -m pip install --upgrade pip
+
+    if "%GPU_TYPE%"=="NVIDIA" (
+        pip install torch torchvision --index-url %INDEX_URL%
+    ) else if "%GPU_TYPE%"=="AMD" (
+        :: Install ROCm PyTorch
+        pip install torch torchvision --index-url https://download.pytorch.org/whl/rocm6.2
+    ) else (
+        pip install torch torchvision
+    )
+    
+    pip install speciesnet PyQt6 opencv-python
+) ELSE (
+    call %VENV_NAME%\Scripts\activate.bat
+)
+
+echo.
+echo Launching...
+:: If AMD, we inject the architecture override as an environment variable
+if "%GPU_TYPE%"=="AMD" (
+    set HSA_OVERRIDE_GFX_VERSION=%ARCH_OVERRIDE%
+    wsl -d Ubuntu-22.04 bash -c "export HSA_OVERRIDE_GFX_VERSION=%ARCH_OVERRIDE% && cd $(wslpath '%cd%') && python3 main.py"
+) else (
+    python main.py
+)
+
+pause

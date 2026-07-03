@@ -1,0 +1,89 @@
+@echo off
+TITLE SpeciesNet Universal Smart Launcher
+COLOR 0A
+
+echo ==========================================================
+echo           AI HARDWARE AUTO-DETECTION SCAN
+echo ==========================================================
+echo.
+
+:: Default fallback is CPU
+set GPU_TYPE=CPU
+set INDEX_URL=
+
+:: 1. Scan for AMD Graphics Cards
+powershell -NoProfile -Command "Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name" | findstr /I "AMD Radeon" >nul
+if %ERRORLEVEL% equ 0 (
+    set GPU_TYPE=AMD
+    set INDEX_URL=https://download.pytorch.org/whl/rocm7.2
+)
+
+:: 2. Scan for NVIDIA Graphics Cards (Overwrites AMD if both are present in a dual-GPU system)
+powershell -NoProfile -Command "Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name" | findstr /I "NVIDIA" >nul
+if %ERRORLEVEL% equ 0 (
+    set GPU_TYPE=NVIDIA
+    set INDEX_URL=https://download.pytorch.org/whl/cu124
+)
+
+echo Success! Hardware Scan Result: [%GPU_TYPE% MODE]
+echo.
+
+:: Bind the machine to a distinct virtual environment folder
+:: This prevents the two computers from clobbering each other's installations if you share a folder
+set VENV_NAME=.venv_%GPU_TYPE%
+
+:: Step 3: Check if this specific environment folder already exists
+IF NOT EXIST "%VENV_NAME%\Scripts\activate.bat" (
+    echo ==========================================================
+    echo First-Time Setup: Building Dedicated %GPU_TYPE% Environment
+    echo ==========================================================
+    echo.
+    
+    :: Force Python 3.12 environment creation
+    py -3.12 -m venv %VENV_NAME%
+    
+    IF ERRORLEVEL 1 (
+        COLOR 0C
+        echo ERROR: Python 3.12 was not found on this system!
+        echo Please make sure Python 3.12 is installed and 'Add to PATH' is checked.
+        pause
+        exit /b
+    )
+
+    :: Activate the fresh environment sandbox
+    call %VENV_NAME%\Scripts\activate.bat
+    
+    echo Upgrading package manager...
+    python -m pip install --upgrade pip
+
+    echo.
+    if "%GPU_TYPE%"=="CPU" (
+        echo [1/2] Installing Standard CPU PyTorch Engine...
+        pip install torch torchvision
+    ) ELSE (
+        echo [1/2] Downloading massive 2.5GB GPU-Enabled [%GPU_TYPE%] PyTorch Engine...
+        pip install torch torchvision --index-url %INDEX_URL%
+    )
+    
+    echo.
+    echo [2/2] Installing SpeciesNet UI Application Dependencies...
+    IF EXIST "requirements.txt" (
+        pip install -r requirements.txt
+    ) ELSE (
+        pip install speciesnet PyQt6 opencv-python
+    )
+    
+    echo.
+    echo ==========================================================
+    echo Setup Complete! App is optimized for your %GPU_TYPE% hardware.
+    echo ==========================================================
+) ELSE (
+    echo Activating verified %GPU_TYPE% environment...
+    call %VENV_NAME%\Scripts\activate.bat
+)
+
+echo.
+echo Launching Application...
+python main.py
+
+pause
