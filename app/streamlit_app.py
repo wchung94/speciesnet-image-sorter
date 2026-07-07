@@ -40,6 +40,8 @@ if "folder_2" not in st.session_state:
     st.session_state.folder_2 = None
 if "folder_3" not in st.session_state:
     st.session_state.folder_3 = None
+if "image_folder_path" not in st.session_state:
+    st.session_state.image_folder_path = ""
 if "logs" not in st.session_state:
     st.session_state.logs = []
 if "show_predictions" not in st.session_state:
@@ -185,6 +187,15 @@ with st.sidebar:
     else:
         st.info("📂 No folder loaded yet")
 
+    image_folder_path = st.text_input(
+        "Image Folder Path",
+        value=st.session_state.image_folder_path or "",
+        help="Paste a folder path here to avoid the native folder picker on macOS.",
+        key="image_folder_path_input",
+    )
+    if image_folder_path != st.session_state.image_folder_path:
+        st.session_state.image_folder_path = image_folder_path
+
     show_predicted_only = st.checkbox(
         "Show only images with predictions (conf > 0.1)",
         value=st.session_state.show_predicted_only,
@@ -199,11 +210,16 @@ with st.sidebar:
             st.session_state.current_image_index = 0
 
     if st.button("📂 Load Folder", use_container_width=True):
-        # Open file explorer to select folder
-        selected_folder = browse_folder()
+        # Prefer a typed path so macOS users can avoid the native Tk dialog.
+        selected_folder = st.session_state.image_folder_path.strip() or browse_folder()
 
-        # If user selected a folder from the dialog, use it
+        if selected_folder and not os.path.exists(selected_folder):
+            st.warning(f"Folder does not exist: {selected_folder}")
+            selected_folder = None
+
+        # If the user selected a folder or entered a valid path, use it.
         if selected_folder:
+            st.session_state.image_folder_path = selected_folder
             st.session_state.current_folder = selected_folder
 
             # Check for predictions.json

@@ -9,6 +9,7 @@ import subprocess
 import sys
 import shutil
 import re
+import threading
 from datetime import datetime
 
 try:
@@ -59,6 +60,13 @@ def browse_folder():
     """Open a folder browser dialog using tkinter."""
     if not TKINTER_AVAILABLE:
         st.error("Folder browser not available. Please enter the path manually.")
+        return None
+
+    if sys.platform == "darwin" and threading.current_thread() is not threading.main_thread():
+        st.warning(
+            "Native folder browsing is unavailable from a background thread on macOS. "
+            "Please use the Image Folder Path field instead."
+        )
         return None
 
     try:

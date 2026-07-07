@@ -52,6 +52,8 @@ Streamlit will print a local URL (typically `http://localhost:8501`).
 2. Select a folder containing images and/or videos.
 3. The app loads supported files and shows them in the main viewer and thumbnail gallery.
 
+On macOS, especially on M1/M2 systems, Streamlit may run the Tk folder picker off the main thread. If the native dialog does not open, use the **Image Folder Path** field in the sidebar and then click **Load Folder**. The app will prefer the typed path before trying the dialog.
+
 Supported image formats:
 
 - `.png`, `.jpg`, `.jpeg`, `.bmp`, `.gif`
@@ -117,6 +119,7 @@ python pyqt_app/weights/download_weights.py
 ## Troubleshooting
 
 - **No folder dialog opens on Linux:** install Tk support for your Python distribution (`tkinter` is required for the folder picker).
+- **`NSWindow should only be instantiated on the main thread` on macOS:** avoid the native folder picker and paste the folder into **Image Folder Path** instead.
 - **No files loaded:** verify media extensions are supported and files are inside the selected folder.
 - **MegaDetector fails:** check that `predictions.json` exists in the loaded folder.
 
