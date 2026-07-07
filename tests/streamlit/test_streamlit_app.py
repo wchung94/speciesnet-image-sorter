@@ -116,6 +116,10 @@ class FakeStreamlit(types.ModuleType):
         self._record("text_input", label, value, key, kwargs)
         return value
 
+    def file_uploader(self, label, **kwargs):
+        self._record("file_uploader", label, kwargs)
+        return []
+
     def selectbox(self, label, options, index=0, key=None, **kwargs):
         self._record("selectbox", label, options, index, key, kwargs)
         selected = options[index]
@@ -194,10 +198,10 @@ def test_initial_state_shows_no_images_message(monkeypatch):
 
 
 def test_load_folder_with_no_images_warns(monkeypatch, tmp_path):
-    fake_st = FakeStreamlit(pressed={"Load Folder"})
+    fake_st = FakeStreamlit(pressed={"Load Selected Folder"})
 
-    def _browse_folder():
-        return str(tmp_path)
+    def _stage_uploaded_files(_uploaded_files):
+        return str(tmp_path), [], None
 
     def _load_folder_images(_folder):
         return []
@@ -206,7 +210,7 @@ def test_load_folder_with_no_images_warns(monkeypatch, tmp_path):
         monkeypatch,
         fake_st,
         overrides={
-            "browse_folder": _browse_folder,
+            "stage_uploaded_files": _stage_uploaded_files,
             "load_folder_images": _load_folder_images,
         },
     )
@@ -238,10 +242,10 @@ def test_load_folder_reads_predictions(monkeypatch, tmp_path):
     predictions_path = tmp_path / "predictions.json"
     predictions_path.write_text(json.dumps(predictions))
 
-    fake_st = FakeStreamlit(pressed={"Load Folder"})
+    fake_st = FakeStreamlit(pressed={"Load Selected Folder"})
 
-    def _browse_folder():
-        return str(tmp_path)
+    def _stage_uploaded_files(_uploaded_files):
+        return str(tmp_path), [str(image_path)], str(predictions_path)
 
     def _load_folder_images(_folder):
         return [str(image_path)]
@@ -250,7 +254,7 @@ def test_load_folder_reads_predictions(monkeypatch, tmp_path):
         monkeypatch,
         fake_st,
         overrides={
-            "browse_folder": _browse_folder,
+            "stage_uploaded_files": _stage_uploaded_files,
             "load_folder_images": _load_folder_images,
         },
     )
@@ -278,11 +282,11 @@ def test_load_folder_show_predicted_only_filters_images(monkeypatch, tmp_path):
     predictions_path.write_text(json.dumps(predictions))
 
     fake_st = FakeStreamlit(
-        pressed={"Load Folder"}, initial_state={"show_predicted_only": True}
+        pressed={"Load Selected Folder"}, initial_state={"show_predicted_only": True}
     )
 
-    def _browse_folder():
-        return str(tmp_path)
+    def _stage_uploaded_files(_uploaded_files):
+        return str(tmp_path), [str(predicted_image), str(other_image)], str(predictions_path)
 
     def _load_folder_images(_folder):
         return [str(predicted_image), str(other_image)]
@@ -291,7 +295,7 @@ def test_load_folder_show_predicted_only_filters_images(monkeypatch, tmp_path):
         monkeypatch,
         fake_st,
         overrides={
-            "browse_folder": _browse_folder,
+            "stage_uploaded_files": _stage_uploaded_files,
             "load_folder_images": _load_folder_images,
         },
     )
@@ -324,11 +328,11 @@ def test_predicted_only_includes_megadetector_pred_images(monkeypatch, tmp_path)
     predictions_path.write_text(json.dumps(predictions))
 
     fake_st = FakeStreamlit(
-        pressed={"Load Folder"}, initial_state={"show_predicted_only": True}
+        pressed={"Load Selected Folder"}, initial_state={"show_predicted_only": True}
     )
 
-    def _browse_folder():
-        return str(tmp_path)
+    def _stage_uploaded_files(_uploaded_files):
+        return str(tmp_path), [str(original_image), str(pred_image), str(other_image)], str(predictions_path)
 
     def _load_folder_images(_folder):
         return [str(original_image), str(pred_image), str(other_image)]
@@ -337,7 +341,7 @@ def test_predicted_only_includes_megadetector_pred_images(monkeypatch, tmp_path)
         monkeypatch,
         fake_st,
         overrides={
-            "browse_folder": _browse_folder,
+            "stage_uploaded_files": _stage_uploaded_files,
             "load_folder_images": _load_folder_images,
         },
     )
@@ -363,11 +367,11 @@ def test_predicted_only_is_case_insensitive(monkeypatch, tmp_path):
     predictions_path.write_text(json.dumps(predictions))
 
     fake_st = FakeStreamlit(
-        pressed={"Load Folder"}, initial_state={"show_predicted_only": True}
+        pressed={"Load Selected Folder"}, initial_state={"show_predicted_only": True}
     )
 
-    def _browse_folder():
-        return str(tmp_path)
+    def _stage_uploaded_files(_uploaded_files):
+        return str(tmp_path), [str(disk_image), str(other_image)], str(predictions_path)
 
     def _load_folder_images(_folder):
         return [str(disk_image), str(other_image)]
@@ -376,7 +380,7 @@ def test_predicted_only_is_case_insensitive(monkeypatch, tmp_path):
         monkeypatch,
         fake_st,
         overrides={
-            "browse_folder": _browse_folder,
+            "stage_uploaded_files": _stage_uploaded_files,
             "load_folder_images": _load_folder_images,
         },
     )
@@ -402,11 +406,11 @@ def test_predicted_only_supports_predictions_filepath_schema(monkeypatch, tmp_pa
     predictions_path.write_text(json.dumps(predictions))
 
     fake_st = FakeStreamlit(
-        pressed={"Load Folder"}, initial_state={"show_predicted_only": True}
+        pressed={"Load Selected Folder"}, initial_state={"show_predicted_only": True}
     )
 
-    def _browse_folder():
-        return str(tmp_path)
+    def _stage_uploaded_files(_uploaded_files):
+        return str(tmp_path), [str(predicted_image), str(other_image)], str(predictions_path)
 
     def _load_folder_images(_folder):
         return [str(predicted_image), str(other_image)]
@@ -415,7 +419,7 @@ def test_predicted_only_supports_predictions_filepath_schema(monkeypatch, tmp_pa
         monkeypatch,
         fake_st,
         overrides={
-            "browse_folder": _browse_folder,
+            "stage_uploaded_files": _stage_uploaded_files,
             "load_folder_images": _load_folder_images,
         },
     )
@@ -445,11 +449,11 @@ def test_predicted_only_applies_confidence_threshold(monkeypatch, tmp_path):
     predictions_path.write_text(json.dumps(predictions))
 
     fake_st = FakeStreamlit(
-        pressed={"Load Folder"}, initial_state={"show_predicted_only": True}
+        pressed={"Load Selected Folder"}, initial_state={"show_predicted_only": True}
     )
 
-    def _browse_folder():
-        return str(tmp_path)
+    def _stage_uploaded_files(_uploaded_files):
+        return str(tmp_path), [str(low_conf_image), str(high_conf_image)], str(predictions_path)
 
     def _load_folder_images(_folder):
         return [str(low_conf_image), str(high_conf_image)]
@@ -458,7 +462,7 @@ def test_predicted_only_applies_confidence_threshold(monkeypatch, tmp_path):
         monkeypatch,
         fake_st,
         overrides={
-            "browse_folder": _browse_folder,
+            "stage_uploaded_files": _stage_uploaded_files,
             "load_folder_images": _load_folder_images,
         },
     )

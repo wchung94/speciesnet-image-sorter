@@ -9,15 +9,8 @@ import subprocess
 import sys
 import shutil
 import re
+import tempfile
 from datetime import datetime
-
-try:
-    import tkinter as tk
-    from tkinter import filedialog
-
-    TKINTER_AVAILABLE = True
-except ImportError:
-    TKINTER_AVAILABLE = False
 
 IMAGE_EXTENSIONS = (
     ".png",
@@ -55,27 +48,43 @@ def log_message(message, level="INFO"):
         st.session_state.logs = st.session_state.logs[-100:]
 
 
-def browse_folder():
-    """Open a folder browser dialog using tkinter."""
-    if not TKINTER_AVAILABLE:
-        st.error("Folder browser not available. Please enter the path manually.")
-        return None
+def stage_uploaded_files(uploaded_files):
+    """Persist uploaded files to a temporary folder and return media paths."""
+    if not uploaded_files:
+        return None, [], None
 
-    try:
-        # Create a root window and hide it
-        root = tk.Tk()
-        root.withdraw()
-        root.wm_attributes("-topmost", 1)
+    upload_dir = tempfile.mkdtemp(prefix="SpeciesNet_ImageSorter_")
+    media_paths = []
+    predictions_path = None
 
-        # Open the folder dialog
-        folder_path = filedialog.askdirectory(parent=root, title="Select a folder")
+    for uploaded_file in uploaded_files:
+        original_name = os.path.basename(uploaded_file.name)
+        base_name, extension = os.path.splitext(original_name)
+        extension_lower = extension.lower()
 
-        root.destroy()
+        is_media_file = extension_lower in ALL_MEDIA_EXTENSIONS
+        is_predictions_file = original_name.lower() == "predictions.json"
+        if not is_media_file and not is_predictions_file:
+            continue
 
-        return folder_path if folder_path else None
-    except Exception as e:
-        st.error(f"Error opening folder browser: {str(e)}")
-        return None
+        destination_name = original_name
+        destination_path = os.path.join(upload_dir, destination_name)
+        suffix = 1
+        while os.path.exists(destination_path):
+            destination_name = f"{base_name}_{suffix}{extension}"
+            destination_path = os.path.join(upload_dir, destination_name)
+            suffix += 1
+
+        with open(destination_path, "wb") as output_file:
+            output_file.write(uploaded_file.getbuffer())
+
+        if is_media_file:
+            media_paths.append(destination_path)
+        elif is_predictions_file:
+            predictions_path = destination_path
+
+    media_paths.sort()
+    return upload_dir, media_paths, predictions_path
 
 
 def get_predicted_filenames(predictions_data):

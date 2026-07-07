@@ -10,8 +10,8 @@ import re
 from PIL import Image
 from streamlit_utils import (
     log_message,
-    browse_folder,
     load_folder_images,
+    stage_uploaded_files,
     copy_image_to_folder,
     run_speciesnet,
     run_megadetector,
@@ -50,6 +50,82 @@ if "use_cuda_for_speciesnet" not in st.session_state:
     st.session_state.use_cuda_for_speciesnet = False
 if "show_predicted_only" not in st.session_state:
     st.session_state.show_predicted_only = False
+if "original_folder_input" not in st.session_state:
+    st.session_state.original_folder_input = ""
+
+
+def _load_selected_folder(folder_path):
+    """Load selected folder and initialize app state from its contents."""
+    st.session_state.current_folder = folder_path
+
+    predictions_path = os.path.join(folder_path, "predictions.json")
+    if os.path.exists(predictions_path):
+        with open(predictions_path, "r", encoding="utf-8") as prediction_file:
+            st.session_state.predictions_data = json.load(prediction_file)
+            st.session_state.show_predictions = True
+    else:
+        st.session_state.predictions_data = None
+        st.session_state.show_predictions = False
+
+    st.session_state.image_files = _refresh_image_files(folder_path)
+    st.session_state.current_image_index = 0
+
+    if len(st.session_state.image_files) == 0:
+        if st.session_state.show_predicted_only:
+            st.warning(
+                f"No predicted images above confidence 0.1 found in {folder_path}"
+            )
+            log_message(
+                "No predicted images above confidence 0.1 found in folder: "
+                f"{folder_path}",
+                "WARNING",
+            )
+        else:
+            st.warning(f"No images found in {folder_path}")
+            log_message(f"No images found in folder: {folder_path}", "WARNING")
+    else:
+        st.success(f"✓ Loaded {len(st.session_state.image_files)} images")
+        log_message(
+            f"Loaded {len(st.session_state.image_files)} images from: {folder_path}"
+        )
+
+    st.rerun()
+
+
+def _infer_original_folder_from_upload(uploaded_files):
+    """Best-effort inference of local folder path from uploaded directory metadata."""
+    if not uploaded_files:
+        return None
+
+    names = [str(getattr(file_obj, "name", "")) for file_obj in uploaded_files]
+    names = [name for name in names if name]
+    if not names:
+        return None
+
+    # If absolute paths are provided, infer common folder directly.
+    absolute_paths = [name for name in names if os.path.isabs(name)]
+    if absolute_paths:
+        common_path = os.path.commonpath(absolute_paths)
+        if os.path.isdir(common_path):
+            return os.path.abspath(common_path)
+        parent = os.path.dirname(common_path)
+        if parent and os.path.isdir(parent):
+            return os.path.abspath(parent)
+
+    # Browser directory uploads often expose relative paths like folder/file.ext.
+    top_levels = set()
+    for name in names:
+        normalized = name.replace("\\", "/").strip("/")
+        parts = [part for part in normalized.split("/") if part]
+        if len(parts) >= 2:
+            top_levels.add(parts[0])
+
+    if len(top_levels) == 1:
+        candidate = os.path.abspath(next(iter(top_levels)))
+        if os.path.isdir(candidate):
+            return candidate
+
+    return None
 
 PREDICTION_CONFIDENCE_THRESHOLD = 0.1
 
@@ -178,6 +254,79 @@ st.markdown("---")
 # Sidebar for folder selection and configuration
 with st.sidebar:
     st.header("📁 Folder Settings")
+    st.caption("Load original local folder (results saved in-place)")
+
+    original_folder_input = st.text_input(
+        "Original Folder Path",
+        value=st.session_state.original_folder_input,
+        help="SpeciesNet and MegaDetector will run directly in this folder.",
+        key="original_folder_path_input",
+    )
+    if original_folder_input != st.session_state.original_folder_input:
+        st.session_state.original_folder_input = original_folder_input
+
+    st.markdown("---")
+    st.caption("Pick a folder to upload (runs from staged temp folder)")
+
+    uploader_kwargs = {
+        "label": "Pick source folder",
+        "type": [
+            "png",
+            "jpg",
+            "jpeg",
+            "bmp",
+            "gif",
+            "mp4",
+            "avi",
+            "mov",
+            "mkv",
+            "flv",
+            "wmv",
+            "webm",
+            "json",
+        ],
+        "help": "Choose a folder and load all supported files from it.",
+    }
+    try:
+        uploaded_files = st.file_uploader(
+            **uploader_kwargs,
+            accept_multiple_files="directory",
+        )
+    except TypeError:
+        uploaded_files = st.file_uploader(
+            **uploader_kwargs,
+            accept_multiple_files=True,
+        )
+
+    inferred_original_folder = _infer_original_folder_from_upload(uploaded_files)
+    if inferred_original_folder:
+        st.session_state.original_folder_input = inferred_original_folder
+
+    if st.button("Load Original Folder", width="stretch"):
+        folder_path = (
+            inferred_original_folder or st.session_state.original_folder_input or ""
+        ).strip()
+        if not folder_path:
+            st.warning(
+                "Unable to infer a local path from folder upload metadata. "
+                "Please enter the folder path manually."
+            )
+        elif not os.path.isdir(folder_path):
+            st.error(f"Folder does not exist: {folder_path}")
+        else:
+            _load_selected_folder(folder_path)
+
+    if st.button("Load Selected Folder", width="stretch"):
+        upload_dir, _, predictions_path = stage_uploaded_files(uploaded_files)
+        if not upload_dir:
+            st.warning("Please pick a folder with supported files")
+        elif predictions_path:
+            if os.path.basename(predictions_path) != "predictions.json":
+                canonical_predictions = os.path.join(upload_dir, "predictions.json")
+                os.replace(predictions_path, canonical_predictions)
+            _load_selected_folder(upload_dir)
+        else:
+            _load_selected_folder(upload_dir)
 
     # Display current folder path (read-only display)
     if st.session_state.current_folder:
@@ -198,62 +347,15 @@ with st.sidebar:
             )
             st.session_state.current_image_index = 0
 
-    if st.button("📂 Load Folder", use_container_width=True):
-        # Open file explorer to select folder
-        selected_folder = browse_folder()
-
-        # If user selected a folder from the dialog, use it
-        if selected_folder:
-            st.session_state.current_folder = selected_folder
-
-            # Check for predictions.json
-            predictions_json = os.path.join(selected_folder, "predictions.json")
-            if os.path.exists(predictions_json):
-                with open(predictions_json, "r") as f:
-                    st.session_state.predictions_data = json.load(f)
-                    st.session_state.show_predictions = True
-            else:
-                st.session_state.predictions_data = None
-                st.session_state.show_predictions = False
-
-            st.session_state.image_files = _refresh_image_files(selected_folder)
-            st.session_state.current_image_index = 0
-
-            # Show feedback about loaded images
-            if len(st.session_state.image_files) == 0:
-                if st.session_state.show_predicted_only:
-                    st.warning(
-                        f"No predicted images above confidence 0.1 found in {selected_folder}"
-                    )
-                    log_message(
-                        "No predicted images above confidence 0.1 found in folder: "
-                        f"{selected_folder}",
-                        "WARNING",
-                    )
-                else:
-                    st.warning(f"No images found in {selected_folder}")
-                    log_message(
-                        f"No images found in folder: {selected_folder}", "WARNING"
-                    )
-            else:
-                st.success(f"✓ Loaded {len(st.session_state.image_files)} images")
-                log_message(
-                    f"Loaded {len(st.session_state.image_files)} images from: {selected_folder}"
-                )
-
-            st.rerun()
-        else:
-            st.warning("No folder selected")
-
     if st.button("Reload Folder"):
         if st.session_state.current_folder:
             # Reload predictions if available
-            predictions_json = os.path.join(
+            predictions_file = os.path.join(
                 st.session_state.current_folder, "predictions.json"
             )
-            if os.path.exists(predictions_json):
-                with open(predictions_json, "r") as f:
-                    st.session_state.predictions_data = json.load(f)
+            if os.path.exists(predictions_file):
+                with open(predictions_file, "r", encoding="utf-8") as prediction_file:
+                    st.session_state.predictions_data = json.load(prediction_file)
             else:
                 st.session_state.predictions_data = None
 
@@ -278,12 +380,6 @@ with st.sidebar:
     if folder_1 != st.session_state.folder_1:
         st.session_state.folder_1 = folder_1
 
-    if st.button("Browse for Folder 1", use_container_width=True):
-        selected = browse_folder()
-        if selected:
-            st.session_state.folder_1 = selected
-            st.rerun()
-
     # Folder 2
     folder_2 = st.text_input(
         "Folder 2 (Button: 2)",
@@ -294,12 +390,6 @@ with st.sidebar:
     if folder_2 != st.session_state.folder_2:
         st.session_state.folder_2 = folder_2
 
-    if st.button("Browse for Folder 2", use_container_width=True):
-        selected = browse_folder()
-        if selected:
-            st.session_state.folder_2 = selected
-            st.rerun()
-
     # Folder 3
     folder_3 = st.text_input(
         "Folder 3 (Button: 3)",
@@ -309,12 +399,6 @@ with st.sidebar:
     )
     if folder_3 != st.session_state.folder_3:
         st.session_state.folder_3 = folder_3
-
-    if st.button("Browse for Folder 3", use_container_width=True):
-        selected = browse_folder()
-        if selected:
-            st.session_state.folder_3 = selected
-            st.rerun()
 
     st.markdown("---")
 
@@ -330,7 +414,7 @@ with st.sidebar:
 
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("Run SpeciesNet", use_container_width=True):
+        if st.button("Run SpeciesNet", width="stretch"):
             if st.session_state.current_folder:
                 succeeded = run_speciesnet(
                     st.session_state.current_folder,
@@ -346,7 +430,7 @@ with st.sidebar:
                 st.error("Please load a folder first")
 
     with col2:
-        if st.button("Run MegaDetector", use_container_width=True):
+        if st.button("Run MegaDetector", width="stretch"):
             if st.session_state.current_folder:
                 run_megadetector(st.session_state.current_folder)
                 st.rerun()
@@ -431,21 +515,21 @@ if st.session_state.image_files:
         btn_col1, btn_col2, btn_col3 = st.columns(3)
 
         with btn_col1:
-            if st.button("📁 Folder 1", use_container_width=True, key="copy1"):
+            if st.button("📁 Folder 1", width="stretch", key="copy1"):
                 if st.session_state.folder_1:
                     copy_image_to_folder(current_image_path, st.session_state.folder_1)
                 else:
                     st.error("Folder 1 not set")
 
         with btn_col2:
-            if st.button("📁 Folder 2", use_container_width=True, key="copy2"):
+            if st.button("📁 Folder 2", width="stretch", key="copy2"):
                 if st.session_state.folder_2:
                     copy_image_to_folder(current_image_path, st.session_state.folder_2)
                 else:
                     st.error("Folder 2 not set")
 
         with btn_col3:
-            if st.button("📁 Folder 3", use_container_width=True, key="copy3"):
+            if st.button("📁 Folder 3", width="stretch", key="copy3"):
                 if st.session_state.folder_3:
                     copy_image_to_folder(current_image_path, st.session_state.folder_3)
                 else:
@@ -494,7 +578,7 @@ if st.session_state.image_files:
                 if idx == st.session_state.current_image_index:
                     st.markdown("**▶️ Current**")
 
-                if st.button("", key=f"thumb_{idx}", use_container_width=True):
+                if st.button("", key=f"thumb_{idx}", width="stretch"):
                     st.session_state.current_image_index = idx
                     st.rerun()
 
@@ -518,14 +602,14 @@ else:
     ## How to Use:
 
     ### 1. Image Sorting
-    1. Enter the path to your image folder in the sidebar
-    2. Click "Load Folder" to load all images
+    1. Pick a source folder using the sidebar folder picker
+    2. Click "Load Selected Folder" to load all media in that folder
     3. Define up to 3 destination folders
     4. Navigate through images using Previous/Next buttons
     5. Click the folder buttons to copy the current image
 
     ### 2. SpeciesNet Detection
-    1. Load a folder containing wildlife images
+    1. Load uploaded wildlife images/videos
     2. Click "Run SpeciesNet" to detect species
     3. A `predictions.json` file will be generated with species probabilities
     4. View detection results in the image info panel
