@@ -3,7 +3,7 @@
 import os
 import tempfile
 import shutil
-from app.file_operations import copy_current_image_to_new_folder
+from pyqt_app.file_operations import copy_current_image_to_new_folder
 
 
 class TestFileOperations:

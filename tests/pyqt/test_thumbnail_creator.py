@@ -3,7 +3,7 @@
 import pytest
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtGui import QPixmap
-from app.thumbnail_creator import create_thumbnail
+from pyqt_app.thumbnail_creator import create_thumbnail
 
 
 @pytest.fixture(scope="module")

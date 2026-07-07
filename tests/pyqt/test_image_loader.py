@@ -5,7 +5,7 @@ import tempfile
 import shutil
 import pytest
 from PyQt6.QtWidgets import QApplication, QListWidget
-from app.image_loader import load_folder_images
+from pyqt_app.image_loader import load_folder_images
 
 
 @pytest.fixture(scope="module")
