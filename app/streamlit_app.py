@@ -6,6 +6,7 @@ A web-based version of the SpeciesNetImageSorter PyQt application.
 import streamlit as st
 import os
 import json
+import re
 from PIL import Image
 from streamlit_utils import (
     log_message,
@@ -15,6 +16,7 @@ from streamlit_utils import (
     run_speciesnet,
     run_megadetector,
     display_predictions_info,
+    is_video_file,
 )
 
 # Configure page
@@ -38,12 +40,137 @@ if "folder_2" not in st.session_state:
     st.session_state.folder_2 = None
 if "folder_3" not in st.session_state:
     st.session_state.folder_3 = None
+if "image_folder_path" not in st.session_state:
+    st.session_state.image_folder_path = ""
 if "logs" not in st.session_state:
     st.session_state.logs = []
 if "show_predictions" not in st.session_state:
     st.session_state.show_predictions = False
 if "predictions_data" not in st.session_state:
     st.session_state.predictions_data = None
+if "use_cuda_for_speciesnet" not in st.session_state:
+    st.session_state.use_cuda_for_speciesnet = False
+if "show_predicted_only" not in st.session_state:
+    st.session_state.show_predicted_only = False
+
+PREDICTION_CONFIDENCE_THRESHOLD = 0.1
+
+
+def _refresh_image_files(folder_path):
+    """Reload media files from the current folder."""
+    image_files = load_folder_images(folder_path)
+
+    if st.session_state.show_predicted_only and st.session_state.predictions_data:
+        predicted_filenames = set()
+        predicted_stems = set()
+        prediction_entries = st.session_state.predictions_data.get("images")
+        if not isinstance(prediction_entries, list):
+            prediction_entries = st.session_state.predictions_data.get(
+                "predictions", []
+            )
+
+        for image_entry in prediction_entries:
+            if not isinstance(image_entry, dict):
+                continue
+
+            detections = image_entry.get("detections") or []
+            if not any(
+                isinstance(det, dict)
+                and isinstance(det.get("conf"), (int, float))
+                and det.get("conf") > PREDICTION_CONFIDENCE_THRESHOLD
+                for det in detections
+            ):
+                # Only keep media that has at least one detection above threshold.
+                continue
+
+            file_value = image_entry.get("file") or image_entry.get("filepath")
+            if isinstance(file_value, str) and file_value:
+                predicted_name = os.path.basename(file_value).lower()
+                predicted_filenames.add(predicted_name)
+                predicted_stems.add(os.path.splitext(predicted_name)[0])
+
+        def _is_predicted_media(path):
+            basename = os.path.basename(path)
+            basename_lower = basename.lower()
+            if basename_lower in predicted_filenames:
+                return True
+
+            candidates = []
+
+            # MegaDetector visualization outputs are often renamed to *_pred.ext
+            # or *_pred_<n>.ext when collisions happen.
+            name_no_ext, ext = os.path.splitext(basename_lower)
+            if name_no_ext.endswith("_pred"):
+                candidates.append(f"{name_no_ext[:-5]}{ext}")
+
+            match = re.match(r"^(.*)_pred_\d+$", name_no_ext)
+            if match:
+                candidates.append(f"{match.group(1)}{ext}")
+
+            # Handle MegaDetector default naming that prefixes with '~' metadata.
+            if "~" in basename_lower:
+                candidates.append(basename_lower.split("~")[-1])
+
+            for candidate in candidates:
+                candidate_stem = os.path.splitext(candidate)[0]
+                if (
+                    candidate in predicted_filenames
+                    or candidate_stem in predicted_stems
+                ):
+                    return True
+
+            return False
+
+        image_files = [path for path in image_files if _is_predicted_media(path)]
+
+    return image_files
+
+
+def _enable_arrow_key_navigation():
+    """Enable left/right arrow key navigation for Prev/Next image buttons."""
+    try:
+        from streamlit.components.v1 import html as components_html
+    except Exception:
+        return
+
+    components_html(
+        """
+                <script>
+                (function () {
+                    try {
+                        const parentWindow = window.parent;
+                        if (!parentWindow || parentWindow.__speciesnetArrowNavInstalled) {
+                            return;
+                        }
+                        parentWindow.__speciesnetArrowNavInstalled = true;
+
+                        parentWindow.addEventListener("keydown", function (event) {
+                            const active = parentWindow.document.activeElement;
+                            const tag = active && active.tagName ? active.tagName.toLowerCase() : "";
+                            if (tag === "input" || tag === "textarea") {
+                                return;
+                            }
+
+                            let targetText = null;
+                            if (event.key === "ArrowLeft") targetText = "Prev";
+                            if (event.key === "ArrowRight") targetText = "Next";
+                            if (!targetText) return;
+
+                            const buttons = Array.from(parentWindow.document.querySelectorAll("button"));
+                            const button = buttons.find((b) => (b.innerText || "").includes(targetText));
+                            if (!button) return;
+
+                            event.preventDefault();
+                            button.click();
+                        }, true);
+                    } catch (e) {
+                        // Ignore browser integration errors.
+                    }
+                })();
+                </script>
+                """,
+        height=0,
+    )
 
 
 # Main UI
@@ -60,25 +187,40 @@ with st.sidebar:
     else:
         st.info("📂 No folder loaded yet")
 
-    if st.button("📂 Load Folder", use_container_width=True):
-        # Open file explorer to select folder
-        selected_folder = browse_folder()
+    image_folder_path = st.text_input(
+        "Image Folder Path",
+        value=st.session_state.image_folder_path or "",
+        help="Paste a folder path here to avoid the native folder picker on macOS.",
+        key="image_folder_path_input",
+    )
+    if image_folder_path != st.session_state.image_folder_path:
+        st.session_state.image_folder_path = image_folder_path
 
-        # If user selected a folder from the dialog, use it
-        if selected_folder:
-            st.session_state.current_folder = selected_folder
-            st.session_state.image_files = load_folder_images(selected_folder)
+    show_predicted_only = st.checkbox(
+        "Show only images with predictions (conf > 0.1)",
+        value=st.session_state.show_predicted_only,
+        help="Only display files whose predictions include at least one detection with confidence > 0.1",
+    )
+    if show_predicted_only != st.session_state.show_predicted_only:
+        st.session_state.show_predicted_only = show_predicted_only
+        if st.session_state.current_folder:
+            st.session_state.image_files = _refresh_image_files(
+                st.session_state.current_folder
+            )
             st.session_state.current_image_index = 0
 
-            # Show feedback about loaded images
-            if len(st.session_state.image_files) == 0:
-                st.warning(f"No images found in {selected_folder}")
-                log_message(f"No images found in folder: {selected_folder}", "WARNING")
-            else:
-                st.success(f"✓ Loaded {len(st.session_state.image_files)} images")
-                log_message(
-                    f"Loaded {len(st.session_state.image_files)} images from: {selected_folder}"
-                )
+    if st.button("📂 Load Folder", use_container_width=True):
+        # Prefer a typed path so macOS users can avoid the native Tk dialog.
+        selected_folder = st.session_state.image_folder_path.strip() or browse_folder()
+
+        if selected_folder and not os.path.exists(selected_folder):
+            st.warning(f"Folder does not exist: {selected_folder}")
+            selected_folder = None
+
+        # If the user selected a folder or entered a valid path, use it.
+        if selected_folder:
+            st.session_state.image_folder_path = selected_folder
+            st.session_state.current_folder = selected_folder
 
             # Check for predictions.json
             predictions_json = os.path.join(selected_folder, "predictions.json")
@@ -90,15 +232,37 @@ with st.sidebar:
                 st.session_state.predictions_data = None
                 st.session_state.show_predictions = False
 
+            st.session_state.image_files = _refresh_image_files(selected_folder)
+            st.session_state.current_image_index = 0
+
+            # Show feedback about loaded images
+            if len(st.session_state.image_files) == 0:
+                if st.session_state.show_predicted_only:
+                    st.warning(
+                        f"No predicted images above confidence 0.1 found in {selected_folder}"
+                    )
+                    log_message(
+                        "No predicted images above confidence 0.1 found in folder: "
+                        f"{selected_folder}",
+                        "WARNING",
+                    )
+                else:
+                    st.warning(f"No images found in {selected_folder}")
+                    log_message(
+                        f"No images found in folder: {selected_folder}", "WARNING"
+                    )
+            else:
+                st.success(f"✓ Loaded {len(st.session_state.image_files)} images")
+                log_message(
+                    f"Loaded {len(st.session_state.image_files)} images from: {selected_folder}"
+                )
+
             st.rerun()
         else:
             st.warning("No folder selected")
 
     if st.button("Reload Folder"):
         if st.session_state.current_folder:
-            st.session_state.image_files = load_folder_images(
-                st.session_state.current_folder
-            )
             # Reload predictions if available
             predictions_json = os.path.join(
                 st.session_state.current_folder, "predictions.json"
@@ -106,6 +270,13 @@ with st.sidebar:
             if os.path.exists(predictions_json):
                 with open(predictions_json, "r") as f:
                     st.session_state.predictions_data = json.load(f)
+            else:
+                st.session_state.predictions_data = None
+
+            st.session_state.image_files = _refresh_image_files(
+                st.session_state.current_folder
+            )
+            st.session_state.current_image_index = 0
             st.rerun()
 
     st.markdown("---")
@@ -166,11 +337,26 @@ with st.sidebar:
     # AI Tools
     st.header("🤖 AI Tools")
 
+    use_cuda_for_speciesnet = st.checkbox(
+        "Use CUDA for SpeciesNet (if available)",
+        value=st.session_state.use_cuda_for_speciesnet,
+        help="When enabled, SpeciesNet can use GPU acceleration if CUDA is available.",
+    )
+    st.session_state.use_cuda_for_speciesnet = use_cuda_for_speciesnet
+
     col1, col2 = st.columns(2)
     with col1:
         if st.button("Run SpeciesNet", use_container_width=True):
             if st.session_state.current_folder:
-                run_speciesnet(st.session_state.current_folder)
+                succeeded = run_speciesnet(
+                    st.session_state.current_folder,
+                    use_cuda=st.session_state.use_cuda_for_speciesnet,
+                )
+                if succeeded:
+                    st.session_state.image_files = _refresh_image_files(
+                        st.session_state.current_folder
+                    )
+                    st.session_state.current_image_index = 0
                 st.rerun()
             else:
                 st.error("Please load a folder first")
@@ -182,12 +368,6 @@ with st.sidebar:
                 st.rerun()
             else:
                 st.error("Please load a folder first")
-
-    # Show predictions toggle
-    if st.session_state.predictions_data:
-        st.session_state.show_predictions = st.checkbox(
-            "Show Predictions", value=st.session_state.show_predictions
-        )
 
     st.markdown("---")
 
@@ -201,6 +381,8 @@ with st.sidebar:
 
 # Main content area
 if st.session_state.image_files:
+    _enable_arrow_key_navigation()
+
     # Image counter and navigation
     col1, col2, col3, col4, col5 = st.columns([1, 1, 2, 1, 1])
 
@@ -251,11 +433,14 @@ if st.session_state.image_files:
     img_col, info_col = st.columns([3, 1])
 
     with img_col:
-        try:
-            image = Image.open(current_image_path)
-            st.image(image, use_container_width=True)
-        except Exception as e:
-            st.error(f"Error loading image: {str(e)}")
+        if is_video_file(current_image_path):
+            st.video(current_image_path)
+        else:
+            try:
+                image = Image.open(current_image_path)
+                st.image(image, use_container_width=True)
+            except Exception as e:
+                st.error(f"Error loading image: {str(e)}")
 
         # Copy buttons below image
         st.markdown("### 📤 Copy Image To:")
@@ -286,15 +471,18 @@ if st.session_state.image_files:
         st.subheader("📊 Image Info")
         st.write(f"**Filename:** {os.path.basename(current_image_path)}")
 
-        try:
-            image = Image.open(current_image_path)
-            st.write(f"**Size:** {image.size[0]} x {image.size[1]}")
-            st.write(f"**Format:** {image.format}")
-        except Exception as e:
-            log_message(
-                f"Failed {e} to load thumbnail for {current_image_path}", "ERROR"
-            )
-            raise
+        if is_video_file(current_image_path):
+            st.write("**Type:** Video")
+        else:
+            try:
+                image = Image.open(current_image_path)
+                st.write(f"**Size:** {image.size[0]} x {image.size[1]}")
+                st.write(f"**Format:** {image.format}")
+            except Exception as e:
+                log_message(
+                    f"Failed {e} to load thumbnail for {current_image_path}", "ERROR"
+                )
+                raise
 
         # Display predictions if available
         display_predictions_info()
@@ -317,8 +505,6 @@ if st.session_state.image_files:
         with cols[col_idx]:
             try:
                 img_path = st.session_state.image_files[idx]
-                img = Image.open(img_path)
-                img.thumbnail((150, 150))
 
                 # Highlight current image
                 if idx == st.session_state.current_image_index:
@@ -328,8 +514,14 @@ if st.session_state.image_files:
                     st.session_state.current_image_index = idx
                     st.rerun()
 
-                st.image(img, use_container_width=True)
-                st.caption(f"{idx + 1}")
+                if is_video_file(img_path):
+                    st.markdown("🎬 Video")
+                    st.caption(f"{idx + 1}: {os.path.basename(img_path)}")
+                else:
+                    img = Image.open(img_path)
+                    img.thumbnail((150, 150))
+                    st.image(img, use_container_width=True)
+                    st.caption(f"{idx + 1}")
             except Exception as e:
                 log_message(f"Failed {e} to load thumbnail for {img_path}", "ERROR")
                 raise

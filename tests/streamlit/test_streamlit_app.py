@@ -116,6 +116,13 @@ class FakeStreamlit(types.ModuleType):
         self._record("text_input", label, value, key, kwargs)
         return value
 
+    def selectbox(self, label, options, index=0, key=None, **kwargs):
+        self._record("selectbox", label, options, index, key, kwargs)
+        selected = options[index]
+        if key:
+            self.session_state[key] = selected
+        return selected
+
     def columns(self, spec):
         count = len(spec) if isinstance(spec, (list, tuple)) else spec
         self._record("columns", spec)
@@ -137,14 +144,14 @@ class FakeStreamlit(types.ModuleType):
 def _load_app(monkeypatch, fake_st, overrides=None):
     monkeypatch.setitem(sys.modules, "streamlit", fake_st)
 
-    import st_app.streamlit_utils as streamlit_utils
+    import app.streamlit_utils as streamlit_utils
 
     streamlit_utils = importlib.reload(streamlit_utils)
     for name, value in (overrides or {}).items():
         setattr(streamlit_utils, name, value)
     monkeypatch.setitem(sys.modules, "streamlit_utils", streamlit_utils)
 
-    import st_app.streamlit_app as streamlit_app
+    import app.streamlit_app as streamlit_app
 
     streamlit_app = importlib.reload(streamlit_app)
     return streamlit_app, streamlit_utils
@@ -251,6 +258,212 @@ def test_load_folder_reads_predictions(monkeypatch, tmp_path):
     assert fake_st.session_state.predictions_data is not None
     assert fake_st.session_state.show_predictions is True
     assert _has_call_with_text(fake_st._calls, "subheader", "Detection Results")
+
+
+def test_load_folder_show_predicted_only_filters_images(monkeypatch, tmp_path):
+    predicted_image = tmp_path / "predicted.jpg"
+    other_image = tmp_path / "other.jpg"
+    _make_image(predicted_image)
+    _make_image(other_image)
+
+    predictions = {
+        "images": [
+            {
+                "file": str(predicted_image),
+                "detections": [],
+            }
+        ]
+    }
+    predictions_path = tmp_path / "predictions.json"
+    predictions_path.write_text(json.dumps(predictions))
+
+    fake_st = FakeStreamlit(
+        pressed={"Load Folder"}, initial_state={"show_predicted_only": True}
+    )
+
+    def _browse_folder():
+        return str(tmp_path)
+
+    def _load_folder_images(_folder):
+        return [str(predicted_image), str(other_image)]
+
+    _load_app(
+        monkeypatch,
+        fake_st,
+        overrides={
+            "browse_folder": _browse_folder,
+            "load_folder_images": _load_folder_images,
+        },
+    )
+
+    assert fake_st.session_state.image_files == []
+    assert _has_call_with_text(
+        fake_st._calls,
+        "warning",
+        "No predicted images above confidence 0.1",
+    )
+
+
+def test_predicted_only_includes_megadetector_pred_images(monkeypatch, tmp_path):
+    original_image = tmp_path / "animal.jpg"
+    pred_image = tmp_path / "animal_pred_1.jpg"
+    other_image = tmp_path / "other.jpg"
+    _make_image(original_image)
+    _make_image(pred_image)
+    _make_image(other_image)
+
+    predictions = {
+        "images": [
+            {
+                "file": str(original_image),
+                "detections": [{"category": "deer", "conf": 0.9}],
+            }
+        ]
+    }
+    predictions_path = tmp_path / "predictions.json"
+    predictions_path.write_text(json.dumps(predictions))
+
+    fake_st = FakeStreamlit(
+        pressed={"Load Folder"}, initial_state={"show_predicted_only": True}
+    )
+
+    def _browse_folder():
+        return str(tmp_path)
+
+    def _load_folder_images(_folder):
+        return [str(original_image), str(pred_image), str(other_image)]
+
+    _load_app(
+        monkeypatch,
+        fake_st,
+        overrides={
+            "browse_folder": _browse_folder,
+            "load_folder_images": _load_folder_images,
+        },
+    )
+
+    assert fake_st.session_state.image_files == [str(original_image), str(pred_image)]
+
+
+def test_predicted_only_is_case_insensitive(monkeypatch, tmp_path):
+    disk_image = tmp_path / "IMG_001.JPG"
+    other_image = tmp_path / "other.jpg"
+    _make_image(disk_image)
+    _make_image(other_image)
+
+    predictions = {
+        "images": [
+            {
+                "file": str(tmp_path / "img_001.jpg"),
+                "detections": [{"category": "deer", "conf": 0.9}],
+            }
+        ]
+    }
+    predictions_path = tmp_path / "predictions.json"
+    predictions_path.write_text(json.dumps(predictions))
+
+    fake_st = FakeStreamlit(
+        pressed={"Load Folder"}, initial_state={"show_predicted_only": True}
+    )
+
+    def _browse_folder():
+        return str(tmp_path)
+
+    def _load_folder_images(_folder):
+        return [str(disk_image), str(other_image)]
+
+    _load_app(
+        monkeypatch,
+        fake_st,
+        overrides={
+            "browse_folder": _browse_folder,
+            "load_folder_images": _load_folder_images,
+        },
+    )
+
+    assert fake_st.session_state.image_files == [str(disk_image)]
+
+
+def test_predicted_only_supports_predictions_filepath_schema(monkeypatch, tmp_path):
+    predicted_image = tmp_path / "IMAG0109.JPG"
+    other_image = tmp_path / "other.jpg"
+    _make_image(predicted_image)
+    _make_image(other_image)
+
+    predictions = {
+        "predictions": [
+            {
+                "filepath": str(predicted_image),
+                "detections": [{"category": "1", "label": "animal", "conf": 0.9}],
+            }
+        ]
+    }
+    predictions_path = tmp_path / "predictions.json"
+    predictions_path.write_text(json.dumps(predictions))
+
+    fake_st = FakeStreamlit(
+        pressed={"Load Folder"}, initial_state={"show_predicted_only": True}
+    )
+
+    def _browse_folder():
+        return str(tmp_path)
+
+    def _load_folder_images(_folder):
+        return [str(predicted_image), str(other_image)]
+
+    _load_app(
+        monkeypatch,
+        fake_st,
+        overrides={
+            "browse_folder": _browse_folder,
+            "load_folder_images": _load_folder_images,
+        },
+    )
+
+    assert fake_st.session_state.image_files == [str(predicted_image)]
+
+
+def test_predicted_only_applies_confidence_threshold(monkeypatch, tmp_path):
+    low_conf_image = tmp_path / "low.jpg"
+    high_conf_image = tmp_path / "high.jpg"
+    _make_image(low_conf_image)
+    _make_image(high_conf_image)
+
+    predictions = {
+        "predictions": [
+            {
+                "filepath": str(low_conf_image),
+                "detections": [{"category": "1", "label": "animal", "conf": 0.05}],
+            },
+            {
+                "filepath": str(high_conf_image),
+                "detections": [{"category": "1", "label": "animal", "conf": 0.5}],
+            },
+        ]
+    }
+    predictions_path = tmp_path / "predictions.json"
+    predictions_path.write_text(json.dumps(predictions))
+
+    fake_st = FakeStreamlit(
+        pressed={"Load Folder"}, initial_state={"show_predicted_only": True}
+    )
+
+    def _browse_folder():
+        return str(tmp_path)
+
+    def _load_folder_images(_folder):
+        return [str(low_conf_image), str(high_conf_image)]
+
+    _load_app(
+        monkeypatch,
+        fake_st,
+        overrides={
+            "browse_folder": _browse_folder,
+            "load_folder_images": _load_folder_images,
+        },
+    )
+
+    assert fake_st.session_state.image_files == [str(high_conf_image)]
 
 
 def test_copy_button_invokes_copy(monkeypatch, tmp_path):

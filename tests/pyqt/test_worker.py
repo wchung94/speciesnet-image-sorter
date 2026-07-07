@@ -4,7 +4,7 @@ import sys
 import time
 import pytest
 from PyQt6.QtWidgets import QApplication
-from app.worker import SpeciesnetWorker
+from pyqt_app.worker import SpeciesnetWorker
 
 
 @pytest.fixture(scope="module")

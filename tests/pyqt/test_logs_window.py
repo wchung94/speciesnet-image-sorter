@@ -3,7 +3,7 @@
 import logging
 import pytest
 from PyQt6.QtWidgets import QApplication, QTextEdit
-from app.logs_window import LogHandler
+from pyqt_app.logs_window import LogHandler
 
 
 @pytest.fixture(scope="module")
